@@ -68,14 +68,37 @@ authenticate anyone until you connect a real project:
 
 1. Create a project at [supabase.com/dashboard](https://supabase.com/dashboard).
 2. **Settings → API** → copy the Project URL into `SUPABASE_URL` and
-   `NEXT_PUBLIC_SUPABASE_URL`, the `anon`/`public` key into `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
-   and the `service_role` key into `SUPABASE_SERVICE_ROLE_KEY` (backend-only — never expose it
-   to the frontend).
-3. Same page, **JWT Settings** → copy the JWT Secret into `SUPABASE_JWT_SECRET`. If your
-   project only shows asymmetric "JWT Signing Keys" (no plain secret field), the verification
-   approach in `apps/api/app/core/security.py` (`_decode_supabase_jwt`, HS256 shared-secret)
-   needs to switch to JWKS-based verification instead — flag it, don't guess.
+   `NEXT_PUBLIC_SUPABASE_URL`, the publishable key (`sb_publishable_...` on current
+   projects, `anon`/`public` on older ones) into `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and
+   the secret key (`sb_secret_...` / `service_role`) into `SUPABASE_SECRET_KEY`
+   (backend-only — never expose it to the frontend).
+3. **JWT verification — figure out which method your project uses before touching
+   `SUPABASE_JWT_SECRET`:**
+   - Current projects sign tokens asymmetrically ("JWT Signing Keys", typically ES256) and
+     have **no usable shared secret** — the "JWT Secret"-looking field on these projects is
+     actually the signing key's *Key ID* (`kid`), not something you can verify with. Leave
+     `SUPABASE_JWT_SECRET` blank; `SUPABASE_URL` alone is enough, since the backend fetches
+     the project's public keys from `{SUPABASE_URL}/auth/v1/.well-known/jwks.json` and
+     verifies against those (`apps/api/app/core/security.py`, `PyJWKClient`).
+   - Older/legacy projects use a real shared HS256 secret — that one *does* go in
+     `SUPABASE_JWT_SECRET`.
+   - You don't have to know which one you have: `_decode_supabase_jwt` reads the incoming
+     token's own `alg` header and routes to the matching verification path automatically. If
+     you're unsure whether your project has a real secret, check whether
+     `{SUPABASE_URL}/auth/v1/.well-known/jwks.json` returns a non-empty `keys` array — if it
+     does, you're on the asymmetric path and don't need a secret at all.
 4. Restart the `api`/`web` containers (or local dev servers) so the new env vars are picked up.
+5. Optional sanity check without building any login UI — mint a real token and call our API
+   directly:
+   ```bash
+   curl -X POST "$SUPABASE_URL/auth/v1/token?grant_type=password" \
+     -H "apikey: $NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" -H "Content-Type: application/json" \
+     -d '{"email":"<test-user>","password":"<their-password>"}'
+   # copy the access_token from the response, then:
+   curl -H "Authorization: Bearer <access_token>" http://localhost:8000/api/v1/auth/me
+   ```
+   A `200` with the user's `id`/`email` back confirms Supabase issues the token and the API
+   correctly verifies it end-to-end.
 
 ### 2.4 Root-level scripts (frontend only, from the repo root)
 

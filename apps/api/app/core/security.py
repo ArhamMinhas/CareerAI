@@ -1,9 +1,11 @@
 from collections.abc import Awaitable, Callable
+from functools import lru_cache
 from typing import Annotated
 
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jwt import PyJWKClient
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,31 +25,73 @@ class TokenPayload(BaseModel):
     email: str | None = None
 
 
+@lru_cache
+def _get_jwks_client() -> PyJWKClient:
+    # PyJWKClient caches the fetched key set internally, so this only hits the network
+    # again after the cache expires or a `kid` it hasn't seen shows up.
+    return PyJWKClient(f"{settings.supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json")
+
+
 def _decode_supabase_jwt(token: str) -> TokenPayload:
-    """Verifies the Supabase Auth JWT using the project's shared HS256 secret
-    (SUPABASE_JWT_SECRET). Supabase projects with asymmetric signing keys enabled would
-    instead verify against the project's JWKS endpoint — swap this function's
-    implementation if/when the project is configured that way; callers are unaffected
-    either way since they only depend on TokenPayload.
+    """Verifies a Supabase Auth JWT, supporting both signing methods Supabase projects can
+    use — routed by the token's own `alg` header rather than a guess, since that's the one
+    thing that's always correct for the token actually being verified:
+
+    - **Legacy projects (HS256):** shared secret, `SUPABASE_JWT_SECRET`.
+    - **Current projects (ES256/RS256):** asymmetric "JWT Signing Keys" — no shared secret
+      exists; verified against the project's public JWKS endpoint instead, which requires
+      only `SUPABASE_URL`.
+
+    See docs/CONTRIBUTING.md §2.3 — this fork was flagged before either path was verified
+    against a real project.
     """
-    if not settings.supabase_jwt_secret:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Auth is not configured (SUPABASE_JWT_SECRET is unset).",
-        )
     try:
-        payload = jwt.decode(
-            token,
-            settings.supabase_jwt_secret,
-            algorithms=["HS256"],
-            audience="authenticated",
-        )
+        alg = jwt.get_unverified_header(token).get("alg")
     except jwt.PyJWTError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
+
+    try:
+        if alg == "HS256":
+            if not settings.supabase_jwt_secret:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Auth is not configured (SUPABASE_JWT_SECRET is unset).",
+                )
+            payload = jwt.decode(
+                token,
+                settings.supabase_jwt_secret,
+                algorithms=["HS256"],
+                audience="authenticated",
+            )
+        else:
+            if not settings.supabase_url:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Auth is not configured (SUPABASE_URL is unset).",
+                )
+            signing_key = _get_jwks_client().get_signing_key_from_jwt(token)
+            payload = jwt.decode(
+                token,
+                signing_key.key,
+                algorithms=["ES256", "RS256"],
+                audience="authenticated",
+            )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        # Covers jwt.PyJWTError (bad signature/expiry) and PyJWKClient errors (network,
+        # unknown kid, ...) alike — any failure here means "reject the token," never a 500
+        # that could hint at internals.
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
+
     return TokenPayload(sub=payload["sub"], email=payload.get("email"))
 
 

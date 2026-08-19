@@ -28,10 +28,24 @@ class Settings(BaseSettings):
     celery_broker_url: str = "redis://localhost:6379/1"
     celery_result_backend: str = "redis://localhost:6379/2"
 
-    # Supabase Auth (docs/SECURITY.md)
+    # Supabase Auth (docs/SECURITY.md). `supabase_jwt_secret` only applies to legacy
+    # projects using the shared HS256 secret; current projects use asymmetric "JWT Signing
+    # Keys" verified via JWKS (needs only `supabase_url`) — see app/core/security.py.
     supabase_url: str = ""
-    supabase_service_role_key: str = ""
+    supabase_secret_key: str = ""
     supabase_jwt_secret: str = ""
+
+    # Object storage (docs/DATABASE.md, docs/DEPLOYMENT.md §5 — Supabase Storage by default)
+    storage_bucket: str = ""
+
+    # AI / LLM providers (docs/AI_ARCHITECTURE.md) — unused until Phase 5, kept here so
+    # config validation has a single source of truth as soon as a phase needs them.
+    openai_api_key: str = ""
+    gemini_api_key: str = ""
+    llm_provider: str = "openai"
+    llm_model_default: str = "gpt-4o-mini"
+    llm_model_reasoning: str = "gpt-4o"
+    embedding_model: str = "text-embedding-3-small"
 
     # CORS
     cors_allowed_origins: str = "http://localhost:3000"
@@ -54,8 +68,10 @@ class Settings(BaseSettings):
         if self.is_production:
             if self.secret_key == "dev-only-insecure-secret-change-me":
                 raise ValueError("SECRET_KEY must be set to a real value in production")
-            if not self.supabase_jwt_secret:
-                raise ValueError("SUPABASE_JWT_SECRET must be set in production")
+            # Either verification path is valid — see app/core/security.py — but at least
+            # one must be configured, or every request would 503.
+            if not self.supabase_jwt_secret and not self.supabase_url:
+                raise ValueError("SUPABASE_URL or SUPABASE_JWT_SECRET must be set in production")
         return self
 
 
