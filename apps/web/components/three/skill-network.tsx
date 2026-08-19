@@ -11,10 +11,15 @@ const SkillNetworkScene = dynamic(
 );
 
 function hasLowCapability(): boolean {
+  // Only excludes genuinely minimal hardware and small screens — this scene is a 14-28 node
+  // instanced mesh plus a handful of line segments, trivially cheap for any GPU-accelerated
+  // browser. Deliberately does NOT check `navigator.connection.saveData`: Data Saver is a
+  // network-bandwidth preference (fewer/smaller downloads), not a rendering-capability signal
+  // — conflating the two excluded users from an already-downloaded, client-side-only scene
+  // for no real reason.
   const cores = navigator.hardwareConcurrency ?? 4;
   const isNarrow = window.matchMedia("(max-width: 767px)").matches;
-  const conn = (navigator as { connection?: { saveData?: boolean } }).connection;
-  return cores < 4 || isNarrow || Boolean(conn?.saveData);
+  return cores < 2 || isNarrow;
 }
 
 // Device capability is an external environment read, not derived render state — subscribed
@@ -38,24 +43,30 @@ const VARIANTS = {
 };
 
 /**
- * Renders the interactive 3D skill/career network on capable desktop devices — drag to
- * rotate, hover/click a node — and a static 2D SVG on mobile, low-end hardware, or
- * prefers-reduced-motion, per docs/UI_ARCHITECTURE.md §6.
+ * Renders the interactive 3D skill/career network on capable, non-mobile devices — drag to
+ * rotate, hover/click a node — and a static 2D SVG on mobile or low-end hardware, per
+ * docs/UI_ARCHITECTURE.md §6.
  *
- * `reduceMotion` safely gates the Fallback/Scene *branch* here (unlike Hero.tsx's old bug):
- * `canRender3D` is always false at hydration time regardless of `reduceMotion`'s value (its
- * server snapshot is hardcoded false), so the OR below is already true at hydration
- * independent of `reduceMotion` — server and client agree on the first render no matter what.
- * The 3D scene only mounts on a later, post-hydration re-render, which isn't subject to the
- * hydration-match constraint.
+ * `prefers-reduced-motion` does NOT fall all the way back to the static SVG anymore. WCAG's
+ * actual concern is autoplaying/unsolicited motion (parallax, auto-rotation, continuous
+ * ambient movement) — not user-initiated interaction the visitor deliberately triggers by
+ * dragging. So `reduceMotion` is passed into the scene instead, which turns off autoRotate
+ * and the ambient per-node float/particle drift but keeps drag-to-rotate, hover, and click
+ * fully working. A visitor with reduced-motion enabled still gets a real interactive scene,
+ * just without anything that moves on its own.
+ *
+ * Only `canRender3D` gates the Fallback/Scene branch, and it's always false at hydration time
+ * (server snapshot is hardcoded false) — so server and client agree on the first render
+ * regardless of `reduceMotion`'s value, avoiding the hydration mismatch this bug used to cause
+ * back when `reduceMotion` was part of this condition too.
  */
 export function SkillNetwork({ variant = "hero" }: { variant?: keyof typeof VARIANTS }) {
   const reduceMotion = useReducedMotion();
   const canRender3D = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
-  if (reduceMotion || !canRender3D) {
+  if (!canRender3D) {
     return <SkillNetworkFallback />;
   }
 
-  return <SkillNetworkScene {...VARIANTS[variant]} />;
+  return <SkillNetworkScene {...VARIANTS[variant]} reduceMotion={Boolean(reduceMotion)} />;
 }

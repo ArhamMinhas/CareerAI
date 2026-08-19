@@ -65,7 +65,7 @@ function generateEdges(nodes: NodeDatum[]) {
 }
 
 /** Sparse, slow-drifting background points — pure depth cue, not a focal element. */
-function AmbientParticles({ radius }: { radius: number }) {
+function AmbientParticles({ radius, reduceMotion }: { radius: number; reduceMotion: boolean }) {
   const ref = useRef<THREE.Points>(null);
   const positions = useMemo(() => {
     const rand = seededRandom(7);
@@ -83,7 +83,7 @@ function AmbientParticles({ radius }: { radius: number }) {
   }, [radius]);
 
   useFrame((_, delta) => {
-    if (!ref.current) return;
+    if (!ref.current || reduceMotion) return;
     ref.current.rotation.y += delta * 0.015;
   });
 
@@ -97,7 +97,7 @@ function AmbientParticles({ radius }: { radius: number }) {
   );
 }
 
-function Nodes({ nodes }: { nodes: NodeDatum[] }) {
+function Nodes({ nodes, reduceMotion }: { nodes: NodeDatum[]; reduceMotion: boolean }) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const color = useMemo(() => new THREE.Color(), []);
@@ -114,8 +114,10 @@ function Nodes({ nodes }: { nodes: NodeDatum[] }) {
 
     nodes.forEach((node, i) => {
       // Organic per-node float — each node bobs on its own phase/speed/amplitude so the
-      // whole network reads as gently alive rather than a rigid rotating solid.
-      const bob = Math.sin(t * node.speed + node.phase) * node.amplitude;
+      // whole network reads as gently alive rather than a rigid rotating solid. Skipped under
+      // reduced-motion (ambient, unsolicited movement); hover/click below stay interactive
+      // either way since those are user-initiated, not automatic.
+      const bob = reduceMotion ? 0 : Math.sin(t * node.speed + node.phase) * node.amplitude;
       dummy.position.copy(node.base).addScaledVector(node.base.clone().normalize(), bob);
 
       let scale = node.isHub ? 1.6 : 1;
@@ -168,7 +170,15 @@ function Nodes({ nodes }: { nodes: NodeDatum[] }) {
   );
 }
 
-function Edges({ nodes, edges }: { nodes: NodeDatum[]; edges: [number, number][] }) {
+function Edges({
+  nodes,
+  edges,
+  reduceMotion,
+}: {
+  nodes: NodeDatum[];
+  edges: [number, number][];
+  reduceMotion: boolean;
+}) {
   const lineRef = useRef<THREE.LineSegments>(null);
   const positions = useMemo(() => new Float32Array(edges.length * 6), [edges.length]);
 
@@ -179,8 +189,8 @@ function Edges({ nodes, edges }: { nodes: NodeDatum[]; edges: [number, number][]
     edges.forEach(([a, b], i) => {
       const na = nodes[a];
       const nb = nodes[b];
-      const bobA = Math.sin(t * na.speed + na.phase) * na.amplitude;
-      const bobB = Math.sin(t * nb.speed + nb.phase) * nb.amplitude;
+      const bobA = reduceMotion ? 0 : Math.sin(t * na.speed + na.phase) * na.amplitude;
+      const bobB = reduceMotion ? 0 : Math.sin(t * nb.speed + nb.phase) * nb.amplitude;
       const pa = na.base.clone().addScaledVector(na.base.clone().normalize(), bobA);
       const pb = nb.base.clone().addScaledVector(nb.base.clone().normalize(), bobB);
       positions.set([pa.x, pa.y, pa.z, pb.x, pb.y, pb.z], i * 6);
@@ -202,15 +212,16 @@ function Edges({ nodes, edges }: { nodes: NodeDatum[]; edges: [number, number][]
 function NetworkGroup({
   nodeCount,
   radius,
+  reduceMotion,
   ...props
-}: ThreeElements["group"] & { nodeCount: number; radius: number }) {
+}: ThreeElements["group"] & { nodeCount: number; radius: number; reduceMotion: boolean }) {
   const nodes = useMemo(() => generateNodes(nodeCount, radius, 42), [nodeCount, radius]);
   const edges = useMemo(() => generateEdges(nodes), [nodes]);
 
   return (
     <group {...props}>
-      <Nodes nodes={nodes} />
-      <Edges nodes={nodes} edges={edges} />
+      <Nodes nodes={nodes} reduceMotion={reduceMotion} />
+      <Edges nodes={nodes} edges={edges} reduceMotion={reduceMotion} />
     </group>
   );
 }
@@ -220,11 +231,13 @@ export function SkillNetworkScene({
   radius = 3.2,
   cameraDistance = 7,
   interactive = true,
+  reduceMotion = false,
 }: {
   nodeCount?: number;
   radius?: number;
   cameraDistance?: number;
   interactive?: boolean;
+  reduceMotion?: boolean;
 }) {
   return (
     <Canvas
@@ -233,8 +246,8 @@ export function SkillNetworkScene({
       gl={{ antialias: true, alpha: true }}
       style={{ touchAction: interactive ? "none" : "auto", cursor: interactive ? "grab" : "default" }}
     >
-      <NetworkGroup nodeCount={nodeCount} radius={radius} />
-      <AmbientParticles radius={radius} />
+      <NetworkGroup nodeCount={nodeCount} radius={radius} reduceMotion={reduceMotion} />
+      <AmbientParticles radius={radius} reduceMotion={reduceMotion} />
       {interactive ? (
         <OrbitControls
           enableZoom={false}
@@ -242,7 +255,7 @@ export function SkillNetworkScene({
           enableDamping
           dampingFactor={0.08}
           rotateSpeed={0.5}
-          autoRotate
+          autoRotate={!reduceMotion}
           autoRotateSpeed={0.4}
           minPolarAngle={Math.PI / 2 - 0.6}
           maxPolarAngle={Math.PI / 2 + 0.6}
