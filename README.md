@@ -1,0 +1,81 @@
+# CareerAI — AI Career Intelligence & Recruitment Platform
+
+CareerAI is an AI-powered career intelligence platform: users upload a resume, target a career,
+and get a structured analysis — resume scoring, skill-gap detection, job matching, a
+personalized learning roadmap, AI mock interviews, and career/job-market analytics — built on a
+combination of deterministic algorithms, trained ML models, retrieval (RAG), and LLM reasoning,
+never a bare "ask the LLM for everything" wrapper.
+
+**Status: Phase 0 — Architecture.** No application code exists yet. This repository currently
+contains the system design and a scaffolded (empty) monorepo structure. See
+[docs/ROADMAP.md](docs/ROADMAP.md) for what's built and what's next.
+
+## Why this project exists
+
+Built to demonstrate end-to-end capability across full-stack engineering, AI engineering, ML
+engineering, and data science in a single coherent product — not a CRUD app and not a ChatGPT
+wrapper. See [docs/ROADMAP.md](docs/ROADMAP.md) and the architecture docs below for how each
+discipline shows up concretely.
+
+## Documentation map
+
+| Doc | Covers |
+|---|---|
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture, component responsibilities, request flows, deployment topology, key decisions |
+| [docs/DATABASE.md](docs/DATABASE.md) | Full relational schema, ERDs, indexing strategy |
+| [docs/API.md](docs/API.md) | REST API conventions, error format, endpoint catalog |
+| [docs/AI_ARCHITECTURE.md](docs/AI_ARCHITECTURE.md) | LLM provider abstraction, embeddings, RAG, agents, prompt management, evaluation, cost control |
+| [docs/ML_PIPELINE.md](docs/ML_PIPELINE.md) | Deterministic scoring formulas, trained ML models, data science pipeline, MLOps |
+| [docs/UI_ARCHITECTURE.md](docs/UI_ARCHITECTURE.md) | Frontend rendering strategy, design system, animation, 3D, responsive/accessibility |
+| [docs/SEO.md](docs/SEO.md) | Technical + on-page SEO, structured data, sitemaps, Core Web Vitals, search-engine setup so the deployed site is actually discoverable |
+| [docs/SECURITY.md](docs/SECURITY.md) | AuthN/Z, OWASP mitigations, secrets, audit logging, data privacy |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Environments, Docker, CI/CD, deployment targets, go-live checklist |
+| [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) | Local setup, workflow, code style, testing expectations |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | Phase-by-phase plan (0–16) and status |
+
+## Technology stack
+
+- **Frontend:** Next.js (App Router), React, TypeScript, Tailwind CSS, Framer Motion, GSAP,
+  React Three Fiber, Lenis, Recharts.
+- **Backend:** Python, FastAPI, Pydantic, SQLAlchemy/SQLModel, Alembic.
+- **Data:** PostgreSQL + pgvector, Redis (cache + Celery broker).
+- **AI/ML:** provider-agnostic LLM abstraction (OpenAI/Gemini), embeddings + RAG, scikit-learn/
+  XGBoost for trained models.
+- **Auth:** Supabase Auth.
+- **Infra:** Docker, GitHub Actions, Vercel (web) + container platform (API/worker).
+
+Full rationale for each choice: [docs/ARCHITECTURE.md §8](docs/ARCHITECTURE.md#8-key-architectural-decisions-adr-style-summary).
+
+## Repository structure
+
+```
+career-ai/
+├── apps/
+│   ├── web/            Next.js frontend
+│   ├── api/             FastAPI backend (layered: api/core/models/schemas/services/repositories/ai/ml/workers)
+│   └── worker/          Celery worker
+├── packages/
+│   ├── ui/               shared component library
+│   ├── types/             shared TypeScript types
+│   └── config/             shared lint/tsconfig/tailwind config
+├── ai/                   standalone AI service layer (pipelines, prompts, agents, embeddings, evaluation)
+├── ml/                   data science pipeline (data, features, models, notebooks, training)
+├── infrastructure/       Docker + deployment config
+├── docs/                 architecture, database, API, AI, ML, UI, SEO, security, deployment, contributing, roadmap
+├── .env.example
+└── README.md
+```
+
+Each directory has its own `README.md` explaining its purpose in more depth.
+
+## Getting started
+
+Local setup instructions land in Phase 1 once the FastAPI/Next.js/Docker foundation exists —
+see [docs/CONTRIBUTING.md §2](docs/CONTRIBUTING.md#2-local-setup-from-phase-1-onward) for the
+intended workflow.
+
+## Building this project
+
+Development proceeds one phase at a time, on explicit request — see
+[docs/ROADMAP.md](docs/ROADMAP.md) for the full phase list and
+[docs/CONTRIBUTING.md §1](docs/CONTRIBUTING.md#1-phase-discipline) for how each phase is run.
