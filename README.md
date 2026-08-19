@@ -6,10 +6,10 @@ personalized learning roadmap, AI mock interviews, and career/job-market analyti
 combination of deterministic algorithms, trained ML models, retrieval (RAG), and LLM reasoning,
 never a bare "ask the LLM for everything" wrapper.
 
-**Status: Phase 1 — Project Foundation ✅.** Monorepo, Next.js 16 + FastAPI apps, PostgreSQL +
-pgvector via Docker Compose, the baseline `users`/`profiles` migration, Supabase Auth wiring,
-and base CI are all in place and verified end-to-end. See [docs/ROADMAP.md](docs/ROADMAP.md)
-for the full phase-by-phase status.
+**Status: Phase 2 — Premium Frontend ✅.** Monorepo, Next.js 16 + FastAPI apps, PostgreSQL +
+pgvector via Docker Compose, Supabase Auth (connected and verified end-to-end), base CI, and
+now the full landing page, dashboard shell, 3D hero, dark/light theme, and SEO plumbing are all
+in place. See [docs/ROADMAP.md](docs/ROADMAP.md) for the full phase-by-phase status.
 
 ## Why this project exists
 

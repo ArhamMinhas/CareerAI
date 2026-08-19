@@ -23,3 +23,17 @@ Or from this directory: `npm run dev`. Opens on [http://localhost:3000](http://l
   coding agents at the Next.js docs bundled in `node_modules/next/dist/docs/` — useful since
   Next.js 16 has real breaking changes vs. older training data (async `params`/`searchParams`,
   `middleware.ts` → `proxy.ts`, etc.). Keep them committed; don't hand-edit the managed block.
+
+## Component structure
+
+```
+components/
+  ui/         primitives (Button, Container, Section, Accordion, EmptyState, ...)
+  layout/      Navbar, Footer, ThemeToggle/Provider, SmoothScroll, dashboard sidebar/mobile nav
+  three/        3D skill-network hero scene + capability-gated 2D fallback
+  motion/        shared scroll-reveal primitive (Reveal)
+  sections/       one component per landing-page section
+```
+
+`packages/ui` is documented as the eventual shared component home but isn't populated yet —
+see [docs/ROADMAP.md — Phase 2](../../docs/ROADMAP.md#phase-2--premium-frontend-) for why.

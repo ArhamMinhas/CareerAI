@@ -36,18 +36,46 @@ the mapped ports; the web homepage renders and its "Check API health" link resol
 live API; lint/typecheck/test/build are clean for both apps; `alembic check` reports no drift
 against the ORM models.
 
-**Not yet done (expected — later phases):** no real Supabase project is connected yet (the
-`SUPABASE_*` env vars are blank in a fresh checkout by design — see
-[CONTRIBUTING.md §2](./CONTRIBUTING.md#2-local-setup-from-phase-1-onward)); until a developer
-fills those in, auth-dependent behavior simply doesn't activate rather than erroring.
+**Update:** a real Supabase project is now connected and verified end-to-end (real user →
+issued JWT → `/api/v1/auth/me` → correct local `users` row). That project turned out to use
+current-generation asymmetric JWT Signing Keys (ES256) rather than the legacy HS256 shared
+secret Phase 1 assumed — `_decode_supabase_jwt` now routes by the token's own `alg` header to
+whichever verification path applies (`apps/api/app/core/security.py`), with regression tests
+for both. `NEXT_PUBLIC_SUPABASE_ANON_KEY`/`SUPABASE_SERVICE_ROLE_KEY` were also renamed to
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`/`SUPABASE_SECRET_KEY` to match Supabase's current
+naming. A fresh checkout with `SUPABASE_*` still blank continues to degrade gracefully rather
+than erroring — see [CONTRIBUTING.md §2](./CONTRIBUTING.md#2-local-setup-from-phase-1-onward).
 
-## Phase 2 — Premium Frontend ⬜
+## Phase 2 — Premium Frontend ✅
 
-Landing page (all sections per spec §10), navigation, dashboard shell, responsive layout,
-dark/light theme, Framer Motion + GSAP + Lenis wiring, 3D hero (with fallback per
-[UI_ARCHITECTURE.md §6](./UI_ARCHITECTURE.md#6-3d-strategy)), mobile UI, and the technical SEO
+Landing page, navigation, dashboard shell, responsive layout, dark/light theme, Framer Motion
+(`motion/react`) + GSAP/ScrollTrigger + Lenis wiring, a 3D hero (React Three Fiber skill/career
+network with a 2D SVG fallback — capability-gated via `useSyncExternalStore`, not an
+effect-driven check, per [UI_ARCHITECTURE.md §6](./UI_ARCHITECTURE.md#6-3d-strategy)), mobile
+UI (bottom nav in the dashboard shell, single-column landing collapse), and the technical SEO
 foundation from [SEO.md §2](./SEO.md#2-technical-seo-implementation-nextjs-app-router)
-(metadata API, robots.txt, sitemap scaffold, JSON-LD for `/`).
+(metadata API, `robots.ts`, `sitemap.ts`, JSON-LD `Organization`/`WebSite`/`FAQPage` on `/`).
+
+**Content composition deviates from spec §10's literal 16-section list, deliberately:** the
+five core-capability sections (resume intelligence, skill gaps, job matching, AI interview,
+career roadmap) are one bento-grid "product tour" instead of five near-identical stacked
+sections, and market-intelligence + analytics share one section with a real Recharts chart.
+All required content is present; the composition avoids the repetition an anti-generic-design
+pass would otherwise flag. 11 visually distinct sections instead of 16 mechanically similar
+ones.
+
+**Architecture note:** `packages/ui` is still just a README — component primitives
+(`Button`, `Container`, `Section`, `Accordion`, `EmptyState`, ...) live in
+`apps/web/components/ui` instead. There's only one consumer app right now, so extracting a
+formally separate shared package would add cross-package build/resolution complexity with no
+current benefit; revisit once a second app (e.g. an admin surface) actually needs to share
+these.
+
+**Verified visually, not just via lint/typecheck/test/build:** real end-to-end Chromium
+(Playwright) checks in both themes and at mobile width, with a simulated scroll pass since the
+scroll-reveal animations (`whileInView`) only trigger on real scroll — a naive full-page
+screenshot tool without that simulation reads as blank, which is expected `whileInView`
+behavior, not a bug. Zero console errors/hydration warnings on a clean server start.
 
 ## Phase 3 — User / Profile System ⬜
 
