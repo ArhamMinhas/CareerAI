@@ -1,13 +1,11 @@
 "use client";
 
-import { motion, useReducedMotion } from "motion/react";
+import { motion } from "motion/react";
 import { ButtonLink } from "@/components/ui/button";
 import { Container } from "@/components/ui/container";
 import { SkillNetwork } from "@/components/three/skill-network";
 
 export function Hero() {
-  const reduce = useReducedMotion();
-
   return (
     <section className="relative overflow-hidden pt-20 lg:pt-24">
       <div
@@ -17,7 +15,7 @@ export function Hero() {
 
       <Container className="relative grid min-h-[calc(100dvh-5rem)] items-center gap-12 lg:grid-cols-2 lg:gap-8">
         <motion.div
-          initial={reduce ? false : { opacity: 0, y: 16 }}
+          initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
         >
@@ -39,7 +37,7 @@ export function Hero() {
         </motion.div>
 
         <motion.div
-          initial={reduce ? false : { opacity: 0, scale: 0.96 }}
+          initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.8, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
           className="relative aspect-square w-full max-w-md justify-self-center lg:max-w-none lg:justify-self-stretch"

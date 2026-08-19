@@ -31,9 +31,9 @@ export function ThemeToggle() {
       className="flex size-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-surface hover:text-foreground"
     >
       {isDark ? (
-        <Sun className="size-[18px]" strokeWidth={1.75} />
+        <Sun className="size-4.5" strokeWidth={1.75} />
       ) : (
-        <Moon className="size-[18px]" strokeWidth={1.75} />
+        <Moon className="size-4.5" strokeWidth={1.75} />
       )}
     </button>
   );
