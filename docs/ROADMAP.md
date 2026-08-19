@@ -17,11 +17,29 @@ code. **Deliverables:** [ARCHITECTURE.md](./ARCHITECTURE.md), [DATABASE.md](./DA
 [DEPLOYMENT.md](./DEPLOYMENT.md), [CONTRIBUTING.md](./CONTRIBUTING.md), monorepo directory
 skeleton, `.env.example`.
 
-## Phase 1 — Project Foundation ⬜
+## Phase 1 — Project Foundation ✅
 
-Monorepo tooling (workspaces), Next.js app bootstrap, FastAPI app bootstrap, PostgreSQL +
-pgvector via Docker Compose, Alembic baseline migration (`users`, `profiles` tables),
-Supabase Auth wiring, Docker images, base CI (lint/type/test), starter design tokens.
+Monorepo tooling (npm workspaces), Next.js 16 app bootstrap (App Router, TypeScript, Tailwind
+v4), FastAPI app bootstrap (layered `app/` package, request-ID middleware, standard
+success/error envelopes per [API.md](./API.md)), PostgreSQL + pgvector via Docker Compose
+(verified live — `CREATE EXTENSION vector` confirmed), Alembic baseline migration (`users`,
+`profiles` tables, applied and drift-checked), Supabase Auth wiring (JWT verification
+dependency + frontend `@supabase/ssr` client/server/proxy helpers — degrades gracefully when
+unconfigured rather than crashing, per spec §57), Docker images for web/api/worker (dev +
+production multi-stage), base CI ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml):
+lint/typecheck/test for both apps, Postgres+Redis service containers), starter design tokens
+([packages/config/tailwind-tokens.css](../packages/config/tailwind-tokens.css)).
+
+**Verified locally end-to-end:** `docker compose up` brings up all 5 services; `GET
+/api/v1/health` and `GET /api/v1/auth/me` (401 when unauthenticated) respond correctly through
+the mapped ports; the web homepage renders and its "Check API health" link resolves against the
+live API; lint/typecheck/test/build are clean for both apps; `alembic check` reports no drift
+against the ORM models.
+
+**Not yet done (expected — later phases):** no real Supabase project is connected yet (the
+`SUPABASE_*` env vars are blank in a fresh checkout by design — see
+[CONTRIBUTING.md §2](./CONTRIBUTING.md#2-local-setup-from-phase-1-onward)); until a developer
+fills those in, auth-dependent behavior simply doesn't activate rather than erroring.
 
 ## Phase 2 — Premium Frontend ⬜
 

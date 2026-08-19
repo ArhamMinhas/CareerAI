@@ -1,0 +1,38 @@
+# Build context is the repo root — npm workspaces need the root package.json/lockfile
+# alongside apps/web and packages/*. docs/DEPLOYMENT.md §3.
+
+FROM node:22-slim AS base
+WORKDIR /repo
+
+FROM base AS deps
+COPY package.json package-lock.json ./
+COPY apps/web/package.json apps/web/package.json
+# packages/* become real npm packages (with their own package.json) starting Phase 2 —
+# see docs/ROADMAP.md. Add their COPY lines here when that happens; until then they're
+# plain shared files (e.g. packages/config/tailwind-tokens.css, imported via relative path,
+# not as an npm dependency), so `npm ci` doesn't need them.
+RUN npm ci
+
+# ---- local development: hot reload via volume mount (see docker-compose.yml) ----
+FROM deps AS dev
+COPY . .
+WORKDIR /repo/apps/web
+EXPOSE 3000
+CMD ["npm", "run", "dev"]
+
+# ---- production build ----
+FROM deps AS builder
+COPY . .
+RUN npm run build --workspace=apps/web
+
+# ---- production runtime: standalone Next.js server, non-root ----
+FROM base AS production
+ENV NODE_ENV=production
+RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
+COPY --from=builder --chown=nextjs:nodejs /repo/apps/web/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /repo/apps/web/.next/static ./apps/web/.next/static
+COPY --from=builder --chown=nextjs:nodejs /repo/apps/web/public ./apps/web/public
+USER nextjs
+EXPOSE 3000
+ENV PORT=3000
+CMD ["node", "apps/web/server.js"]

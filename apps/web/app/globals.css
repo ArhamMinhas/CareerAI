@@ -1,0 +1,6 @@
+@import "../../../packages/config/tailwind-tokens.css";
+
+body {
+  background: var(--color-background);
+  color: var(--color-foreground);
+}

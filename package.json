@@ -1,0 +1,20 @@
+{
+  "name": "careerai",
+  "private": true,
+  "version": "0.1.0",
+  "description": "CareerAI — AI Career Intelligence & Recruitment Platform (monorepo root)",
+  "workspaces": [
+    "apps/web",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace=apps/web",
+    "build:web": "npm run build --workspace=apps/web",
+    "lint:web": "npm run lint --workspace=apps/web",
+    "typecheck:web": "npm run typecheck --workspace=apps/web",
+    "test:web": "npm run test --workspace=apps/web"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

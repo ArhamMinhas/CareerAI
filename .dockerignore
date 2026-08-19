@@ -1,0 +1,40 @@
+.git
+.github
+
+# Node
+node_modules
+**/node_modules
+.next
+**/.next
+npm-debug.log*
+
+# Python
+.venv
+**/.venv
+__pycache__
+**/__pycache__
+*.pyc
+.pytest_cache
+.mypy_cache
+.ruff_cache
+alembic/versions/__pycache__
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# ML artifacts (large binary — see ml/README.md)
+ml/data/raw/*
+ml/data/processed/*
+ml/data/features/*
+ml/models/*
+*.pkl
+*.joblib
+*.onnx
+
+# Editor / OS
+.vscode
+.idea
+.DS_Store
+Thumbs.db

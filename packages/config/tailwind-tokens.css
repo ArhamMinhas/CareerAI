@@ -1,0 +1,118 @@
+/**
+ * CareerAI shared design tokens (Tailwind v4 CSS-first theme).
+ * Consumed via `@import "../../packages/config/tailwind-tokens.css";` from any app's
+ * global stylesheet. See docs/UI_ARCHITECTURE.md §4 (design system) — this is the
+ * Phase 1 starter set; Phase 2 (Premium Frontend) extends it, it doesn't replace it.
+ *
+ * Two-layer structure:
+ *   1. Primitives (`--gray-*`, `--violet-*`, ...) — raw palette, not used directly in markup.
+ *   2. Semantic tokens (`--color-background`, `--color-primary`, ...) — what components use.
+ * Dark mode is a `data-theme="dark"` attribute on <html> (user-toggleable, persisted),
+ * with `prefers-color-scheme` as the unset default — see docs/UI_ARCHITECTURE.md §4.
+ */
+
+@import "tailwindcss";
+
+:root {
+  /* Primitives — neutral scale */
+  --gray-0: #ffffff;
+  --gray-50: #fafafa;
+  --gray-100: #f4f4f5;
+  --gray-200: #e4e4e7;
+  --gray-300: #d4d4d8;
+  --gray-400: #a1a1aa;
+  --gray-500: #71717a;
+  --gray-600: #52525b;
+  --gray-700: #3f3f46;
+  --gray-800: #27272a;
+  --gray-900: #18181b;
+  --gray-950: #09090b;
+
+  /* Primitives — accent (violet) */
+  --violet-400: #a78bfa;
+  --violet-500: #8b5cf6;
+  --violet-600: #7c3aed;
+  --violet-700: #6d28d9;
+
+  /* Primitives — status */
+  --green-500: #22c55e;
+  --amber-500: #f59e0b;
+  --red-500: #ef4444;
+
+  /* Semantic tokens — light (default) */
+  --color-background: var(--gray-0);
+  --color-surface: var(--gray-50);
+  --color-foreground: var(--gray-950);
+  --color-muted-foreground: var(--gray-500);
+  --color-border: var(--gray-200);
+  --color-primary: var(--violet-600);
+  --color-primary-foreground: var(--gray-0);
+  --color-success: var(--green-500);
+  --color-warning: var(--amber-500);
+  --color-danger: var(--red-500);
+
+  /* Radius scale */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+
+  /* Shadow scale — soft, per docs/UI_ARCHITECTURE.md §4 ("soft shadows, thin borders") */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.04);
+  --shadow-md: 0 4px 12px -2px rgb(0 0 0 / 0.08);
+  --shadow-lg: 0 12px 32px -8px rgb(0 0 0 / 0.12);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-background: var(--gray-950);
+    --color-surface: var(--gray-900);
+    --color-foreground: var(--gray-50);
+    --color-muted-foreground: var(--gray-400);
+    --color-border: var(--gray-800);
+    --color-primary: var(--violet-500);
+    --color-primary-foreground: var(--gray-0);
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.2);
+    --shadow-md: 0 4px 12px -2px rgb(0 0 0 / 0.32);
+    --shadow-lg: 0 12px 32px -8px rgb(0 0 0 / 0.4);
+  }
+}
+
+:root[data-theme="dark"] {
+  --color-background: var(--gray-950);
+  --color-surface: var(--gray-900);
+  --color-foreground: var(--gray-50);
+  --color-muted-foreground: var(--gray-400);
+  --color-border: var(--gray-800);
+  --color-primary: var(--violet-500);
+  --color-primary-foreground: var(--gray-0);
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.2);
+  --shadow-md: 0 4px 12px -2px rgb(0 0 0 / 0.32);
+  --shadow-lg: 0 12px 32px -8px rgb(0 0 0 / 0.4);
+}
+
+/* Map semantic tokens into Tailwind utilities (bg-background, text-primary, rounded-lg, ...) */
+@theme inline {
+  --color-background: var(--color-background);
+  --color-surface: var(--color-surface);
+  --color-foreground: var(--color-foreground);
+  --color-muted-foreground: var(--color-muted-foreground);
+  --color-border: var(--color-border);
+  --color-primary: var(--color-primary);
+  --color-primary-foreground: var(--color-primary-foreground);
+  --color-success: var(--color-success);
+  --color-warning: var(--color-warning);
+  --color-danger: var(--color-danger);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}

@@ -1,8 +1,7 @@
 # Contributing to CareerAI
 
 This is currently a single-maintainer, phase-driven build (see [ROADMAP.md](./ROADMAP.md)).
-This document describes the workflow once Phase 1 (project foundation) lands tooling; today,
-in Phase 0, only documentation and the repository skeleton exist.
+Phase 1 (project foundation) has landed, so the workflow below is live, not aspirational.
 
 ## 1. Phase discipline
 
@@ -20,14 +19,72 @@ A phase is not "done" because files exist — see the Definition of Done in
 
 ## 2. Local setup (from Phase 1 onward)
 
+### 2.1 Everything via Docker Compose (recommended)
+
 ```bash
-cp .env.example .env          # fill in required values
-docker compose -f infrastructure/docker/docker-compose.yml up
+cp .env.example .env          # fill in real values — see §2.3 for Supabase
+docker compose -f infrastructure/docker/docker-compose.yml up -d
 ```
 
-Frontend: `apps/web` (Next.js dev server, hot reload). Backend: `apps/api` (FastAPI,
-`--reload`). Worker: `apps/worker` (Celery, autoreload in dev). Migrations:
-`alembic upgrade head` run against the local Postgres container.
+This starts all five services: `postgres` (with `pgvector` enabled via
+`infrastructure/docker/postgres-init/001-extensions.sql`), `redis`, `api` (FastAPI,
+`--reload`), `worker` (Celery), and `web` (Next.js, hot reload). First run builds the images
+(a couple of minutes); after that, `up -d` is seconds.
+
+Then apply migrations once (from `apps/api`, against the containerized Postgres — see §2.2 for
+the venv setup, or run it from inside the container: `docker compose -f
+infrastructure/docker/docker-compose.yml exec api alembic upgrade head`):
+
+```bash
+cd apps/api && alembic upgrade head
+```
+
+Verify: `http://localhost:3000` (web) and `http://localhost:8000/api/v1/health` (API — should
+return `{"data":{"status":"ok"},...}`) and `http://localhost:8000/docs` (OpenAPI docs).
+
+### 2.2 Running `apps/api` outside Docker (faster iteration on the backend alone)
+
+```bash
+cd apps/api
+python -m venv .venv
+./.venv/Scripts/activate        # ./.venv/bin/activate on macOS/Linux
+pip install -r requirements/dev.txt
+docker compose -f ../../infrastructure/docker/docker-compose.yml up -d postgres redis
+alembic upgrade head
+uvicorn app.main:app --reload
+```
+
+Lint/format/typecheck/test:
+
+```bash
+ruff check . && ruff format --check . && mypy app && pytest
+```
+
+### 2.3 Supabase Auth setup
+
+A fresh checkout runs fine with the `SUPABASE_*` variables blank — `proxy.ts` and the backend
+JWT dependency degrade gracefully rather than erroring (spec §57) — but auth won't actually
+authenticate anyone until you connect a real project:
+
+1. Create a project at [supabase.com/dashboard](https://supabase.com/dashboard).
+2. **Settings → API** → copy the Project URL into `SUPABASE_URL` and
+   `NEXT_PUBLIC_SUPABASE_URL`, the `anon`/`public` key into `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
+   and the `service_role` key into `SUPABASE_SERVICE_ROLE_KEY` (backend-only — never expose it
+   to the frontend).
+3. Same page, **JWT Settings** → copy the JWT Secret into `SUPABASE_JWT_SECRET`. If your
+   project only shows asymmetric "JWT Signing Keys" (no plain secret field), the verification
+   approach in `apps/api/app/core/security.py` (`_decode_supabase_jwt`, HS256 shared-secret)
+   needs to switch to JWKS-based verification instead — flag it, don't guess.
+4. Restart the `api`/`web` containers (or local dev servers) so the new env vars are picked up.
+
+### 2.4 Root-level scripts (frontend only, from the repo root)
+
+```bash
+npm run dev:web / build:web / lint:web / typecheck:web / test:web
+```
+
+Backend equivalents are run from `apps/api` directly (§2.2) — there isn't a Python-workspace
+concept to route them through the root `package.json`.
 
 ## 3. Branching & commits
 

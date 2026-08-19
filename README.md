@@ -6,9 +6,10 @@ personalized learning roadmap, AI mock interviews, and career/job-market analyti
 combination of deterministic algorithms, trained ML models, retrieval (RAG), and LLM reasoning,
 never a bare "ask the LLM for everything" wrapper.
 
-**Status: Phase 0 — Architecture.** No application code exists yet. This repository currently
-contains the system design and a scaffolded (empty) monorepo structure. See
-[docs/ROADMAP.md](docs/ROADMAP.md) for what's built and what's next.
+**Status: Phase 1 — Project Foundation ✅.** Monorepo, Next.js 16 + FastAPI apps, PostgreSQL +
+pgvector via Docker Compose, the baseline `users`/`profiles` migration, Supabase Auth wiring,
+and base CI are all in place and verified end-to-end. See [docs/ROADMAP.md](docs/ROADMAP.md)
+for the full phase-by-phase status.
 
 ## Why this project exists
 
@@ -73,9 +74,15 @@ Each directory has its own `README.md` explaining its purpose in more depth.
 
 ## Getting started
 
-Local setup instructions land in Phase 1 once the FastAPI/Next.js/Docker foundation exists —
-see [docs/CONTRIBUTING.md §2](docs/CONTRIBUTING.md#2-local-setup-from-phase-1-onward) for the
-intended workflow.
+```bash
+cp .env.example .env
+docker compose -f infrastructure/docker/docker-compose.yml up -d
+cd apps/api && alembic upgrade head
+```
+
+Then open `http://localhost:3000` (web) and `http://localhost:8000/docs` (API). Full setup
+detail, running the backend outside Docker, and connecting Supabase Auth:
+[docs/CONTRIBUTING.md §2](docs/CONTRIBUTING.md#2-local-setup-from-phase-1-onward).
 
 ## Building this project
 
