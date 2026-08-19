@@ -1,6 +1,7 @@
 import { FileText, Target, Briefcase, MessagesSquare } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ButtonLink } from "@/components/ui/button";
+import { SkillNetwork } from "@/components/three/skill-network";
 
 const metrics = [
   {
@@ -36,13 +37,27 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {metrics.map((metric) => (
-          <EmptyState key={metric.title} {...metric} />
-        ))}
+      <div className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="overflow-hidden rounded-xl border border-border bg-surface lg:col-span-1">
+          <div className="h-56 w-full">
+            <SkillNetwork variant="compact" />
+          </div>
+          <div className="border-t border-border px-5 py-4">
+            <h2 className="text-sm font-medium text-foreground">Your skill constellation</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Drag to explore. Populates with your real skills once a resume is analyzed.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:col-span-2">
+          {metrics.map((metric) => (
+            <EmptyState key={metric.title} {...metric} />
+          ))}
+        </div>
       </div>
 
-      <div className="mt-10 flex flex-col items-start gap-3 rounded-xl border border-border bg-surface p-6">
+      <div className="mt-6 flex flex-col items-start gap-3 rounded-xl border border-border bg-surface p-6">
         <h2 className="text-sm font-medium text-foreground">Get started</h2>
         <p className="max-w-[52ch] text-sm text-muted-foreground">
           Resume upload and profile setup are the next things to build. For now, this

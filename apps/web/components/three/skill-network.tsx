@@ -32,12 +32,24 @@ function getServerSnapshot() {
   return false;
 }
 
+const VARIANTS = {
+  hero: { nodeCount: 28, radius: 3.2, cameraDistance: 7 },
+  compact: { nodeCount: 14, radius: 2.4, cameraDistance: 6 },
+};
+
 /**
- * Renders the interactive 3D skill/career network on capable desktop devices, and a static
- * 2D SVG on mobile, low-end hardware, or prefers-reduced-motion — per
- * docs/UI_ARCHITECTURE.md §6.
+ * Renders the interactive 3D skill/career network on capable desktop devices — drag to
+ * rotate, hover/click a node — and a static 2D SVG on mobile, low-end hardware, or
+ * prefers-reduced-motion, per docs/UI_ARCHITECTURE.md §6.
+ *
+ * `reduceMotion` safely gates the Fallback/Scene *branch* here (unlike Hero.tsx's old bug):
+ * `canRender3D` is always false at hydration time regardless of `reduceMotion`'s value (its
+ * server snapshot is hardcoded false), so the OR below is already true at hydration
+ * independent of `reduceMotion` — server and client agree on the first render no matter what.
+ * The 3D scene only mounts on a later, post-hydration re-render, which isn't subject to the
+ * hydration-match constraint.
  */
-export function SkillNetwork() {
+export function SkillNetwork({ variant = "hero" }: { variant?: keyof typeof VARIANTS }) {
   const reduceMotion = useReducedMotion();
   const canRender3D = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
@@ -45,5 +57,5 @@ export function SkillNetwork() {
     return <SkillNetworkFallback />;
   }
 
-  return <SkillNetworkScene />;
+  return <SkillNetworkScene {...VARIANTS[variant]} />;
 }
