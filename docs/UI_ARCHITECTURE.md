@@ -8,15 +8,24 @@ component/rendering architecture that SEO strategy depends on.
 ## 1. Route map (`apps/web/app`)
 
 ```
-/                          marketing landing page (public)
+Public / SEO surface (indexed — see SEO.md)
+/                          marketing landing page
+/careers                   career path index
+/careers/[slug]            career path detail (e.g. /careers/ai-engineer)
+/skills/[slug]              public skill glossary page (e.g. /skills/python)
+/jobs                      job search/browse
+/jobs/[id]                 job detail
+/companies/[id]            company profile + open jobs
+/resources                  article/guide index
+/resources/[slug]            article detail
+
+Authenticated app (noindex — private, personalized)
 /dashboard                 executive overview
 /profile                   profile, education, experience, projects, skills, goals
 /resume                    resume list
 /resume/analyze            upload + processing + analysis view
-/skills                    skill inventory + gap visualization
+/skills                    personal skill inventory + gap visualization
 /career                    recommendations + explanations
-/jobs                      browse/search
-/jobs/[id]                 job detail
 /matches                   personalized ranked matches
 /roadmap                   learning roadmap
 /interviews                history
@@ -33,14 +42,17 @@ component/rendering architecture that SEO strategy depends on.
 /admin/system
 ```
 
-Public routes (`/`, marketing pages) are the SEO surface — see [SEO.md](./SEO.md). Everything
-under an authenticated layout (`/dashboard` and below) is intentionally **not** indexed
-(`noindex`, excluded from the sitemap) since it's private, personalized data.
+The public/SEO surface and the authenticated app are structurally separate route groups, not
+just a metadata flag — see [SEO.md §1](./SEO.md#1-what-gets-indexed-vs-what-doesnt) for the
+full indexable-vs-`noindex` breakdown, including the deliberate `/skills` vs `/skills/[slug]`
+naming overlap. Every route under the authenticated layout (`/dashboard` and below) is
+explicitly `noindex`, excluded from the sitemap, since it's private, personalized data.
 
 ## 2. Rendering strategy
 
-- **Server Components by default.** Data-fetching pages (landing sections, job listing SSR for
-  first paint + SEO, dashboard shell) render on the server.
+- **Server Components by default.** Data-fetching pages (landing sections, the public content
+  surface — careers, skills, jobs, companies, resources — SSR/SSG'd for first paint and SEO,
+  dashboard shell) render on the server.
 - **Client Components only where interactivity requires it:** forms (React Hook Form + Zod),
   charts, the 3D canvas, animated sequences, anything using browser-only APIs or local state.
   A Client Component is a leaf, not a whole page — server components pass data down to small

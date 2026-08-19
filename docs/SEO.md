@@ -2,8 +2,11 @@
 
 Status: Phase 0 design. Foundational technical SEO (metadata, sitemap, robots.txt, structured
 data) is built in Phase 2 alongside the landing page so it's never bolted on after launch;
-programmatic SEO for job pages ships in Phase 7 (job recommendation) once `/jobs/[id]` exists;
-search-console/analytics wiring happens in Phase 16 (production deployment). See
+`/careers/[slug]` and `/skills/[slug]` ship in Phase 6, `/jobs/[id]` and `/companies/[id]` in
+Phase 7, `/resources/[slug]` in Phase 9 (RAG); baseline search-console/analytics wiring happens
+in Phase 16 (initial deployment), and the full rollout — every content type live with complete
+structured data, Core Web Vitals budgets on all public routes, and production monitoring — is
+the explicit focus of **Phase 17 (Cloud + SEO + Production Deployment)**. See
 [ROADMAP.md](./ROADMAP.md).
 
 This document exists so that once CareerAI is deployed, it is actually **findable** — indexed
@@ -13,14 +16,25 @@ correctly by Google/Bing, rendered properly when shared, and fast enough to rank
 
 ## 1. What gets indexed vs. what doesn't
 
-| Surface | Indexable? | Rendering |
-|---|---|---|
-| `/` marketing landing page | Yes | Server Component, statically generated (SSG) |
-| `/jobs`, `/jobs/[id]` | Yes — this is the highest-value programmatic SEO surface (real, unique, frequently-updated content) | Server-rendered (ISR — see §5) |
-| Public career-guide / RAG knowledge-base content (future blog/guides surface) | Yes | SSG/ISR |
-| `/dashboard`, `/profile`, `/resume/*`, `/skills`, `/career`, `/matches`, `/roadmap`, `/interviews/*`, `/analytics`, `/settings` | **No** — private, personalized, behind auth | `noindex`, excluded from sitemap |
+| Surface | Indexable? | Rendering | Backing data |
+|---|---|---|---|
+| `/` marketing landing page | Yes | SSG | static content |
+| `/careers`, `/careers/[slug]` (e.g. `/careers/ai-engineer`) | Yes | SSG + ISR revalidate | `career_paths` ([DATABASE.md §2.6](./DATABASE.md#26-public-content--seo)) |
+| `/skills/[slug]` (e.g. `/skills/python`, `/skills/machine-learning`) | Yes | SSG + ISR revalidate | `skills` |
+| `/jobs`, `/jobs/[id]` | Yes — the highest-value programmatic SEO surface (real, unique, frequently-updated content) | ISR — see §5 | `jobs` |
+| `/companies/[id]` | Yes | ISR revalidate | `companies` |
+| `/resources/[slug]` | Yes | SSG + ISR revalidate | `resources` (same content that feeds RAG — see [DATABASE.md §2.6](./DATABASE.md#26-public-content--seo)) |
+| `/dashboard`, `/resume`, `/analytics`, `/interviews`, `/settings`, and the rest of the authenticated app (`/profile`, `/skills` *app view*, `/career`, `/matches`, `/roadmap`, `/interviews/[id]`) | **No** — private, personalized, behind auth | `noindex`, excluded from sitemap |
 | `/admin/*` | **No** | `noindex`, excluded from sitemap, also blocked in `robots.txt` |
 | `/api/*` | **No** | Blocked in `robots.txt`; not HTML anyway |
+
+Note the naming overlap is intentional but scoped carefully: `/skills` (exact path, under the
+authenticated app shell) is the user's personal skill inventory; `/skills/[slug]` (dynamic
+segment) is the public SEO glossary page for a single skill, reading the same `skills` table.
+Next.js resolves these as distinct routes with no collision (`app/skills/page.tsx` vs.
+`app/skills/[slug]/page.tsx`), and the authenticated app never defines a matching `/skills/[id]`
+route of its own — a per-skill authenticated deep-dive, if one is added later, must live under a
+different path (e.g. `/dashboard/skills/[id]`) precisely to avoid that ambiguity.
 
 Rule of thumb: only server-rendered, publicly-accessible, unique content is a page we want
 indexed. Anything requiring auth is explicitly marked `noindex` — indexing a login-gated page
@@ -81,38 +95,68 @@ Sitemap: https://careerai.example.com/sitemap.xml
 
 ### 2.3 Sitemap (`app/sitemap.ts`)
 
-Generated, not hand-maintained: static marketing routes plus a **paginated dynamic sitemap
-index** over `jobs` (and future public knowledge-base articles), since job listings are the
-largest and most frequently changing indexable set. Next.js supports sitemap generator
-functions that can return multiple sitemap files (`sitemap.xml`, `sitemap/0.xml`, ...) once the
-URL count exceeds the ~50k single-file limit — the job sitemap route paginates by
-`created_at`/`id` directly from the `jobs` table so it never needs to be manually regenerated.
-Each entry includes `lastModified` (from `jobs.updated_at`) so crawlers can prioritize re-crawls
-of recently changed postings.
+Generated, not hand-maintained, as a sitemap **index** over one sub-sitemap per content type —
+`sitemap.xml` links to `sitemap/static.xml`, `sitemap/jobs.xml`, `sitemap/careers.xml`,
+`sitemap/companies.xml`, `sitemap/resources.xml`. Jobs get their own paginated sub-sitemap
+(`sitemap/jobs/0.xml`, `sitemap/jobs/1.xml`, ...) since that's the largest and fastest-changing
+set and, once it exceeds the ~50k URL single-file limit, needs pagination the other content
+types won't for a long time. Every entry is generated directly from its table
+(`WHERE published = true` for `career_paths`/`resources`, all non-deleted rows for `jobs`), so
+the sitemap never needs manual regeneration and can't drift from what's actually live.
+`lastModified` is sourced from each row's `updated_at` (`jobs.updated_at`,
+`resources.updated_at`, ...) so crawlers prioritize re-crawling recently changed content.
 
 ### 2.4 Structured data (JSON-LD)
 
-Injected via a small `<script type="application/ld+json">` per relevant page:
+Injected via a small `<script type="application/ld+json">` per relevant page. `Organization` and
+`BreadcrumbList` are applied broadly (site-wide identity + hierarchy signal on every deep page);
+the rest are specific to what the page actually is:
 
 | Page | Schema.org type | Why |
 |---|---|---|
-| `/` | `Organization`, `WebSite` (with `SearchAction` if on-site search ships) | Brand knowledge panel eligibility, sitelinks search box |
+| Every page (root layout) | `Organization` | Site-wide brand identity — knowledge panel eligibility, consistent logo/name across all rich results |
+| `/` | `WebSite` (with `SearchAction` if on-site search ships) | Sitelinks search box eligibility |
 | `/jobs/[id]` | `JobPosting` | Eligibility for Google for Jobs — the single highest-leverage structured data on this project, since it makes every job page a candidate for a rich, high-CTR listing |
-| FAQ section on landing page | `FAQPage` | FAQ rich results |
-| `/jobs`, `/jobs/[id]` | `BreadcrumbList` | Breadcrumb rich results, clearer site hierarchy signal |
+| `/companies/[id]` | `Organization` (company-specific instance, distinct from the site-wide one) | Company knowledge panel, consistent entity linking from its `JobPosting.hiringOrganization` references |
+| `/careers/[slug]` | `BreadcrumbList` + descriptive metadata; `Occupation` where the field's schema support is worth the maintenance cost | Career-path pages are less standardized in Schema.org than jobs — `Occupation` (with `estimatedSalary`, `skills`) is the closest fit and is treated as an incremental enhancement, not a Phase 6 launch blocker |
+| `/skills/[slug]` | `DefinedTerm` (skill name + description, part of a site-wide `DefinedTermSet`) | Correct semantic fit for a glossary/definition page; supports rich snippet eligibility for "what is X" queries |
+| `/resources/[slug]` | `Article` (`headline`, `datePublished` ← `published_at`, `dateModified` ← `updated_at`, `author`/`publisher` ← site `Organization`) | Standard article rich-result eligibility |
+| FAQ section on landing page (and any `/resources/[slug]` page structured as Q&A) | `FAQPage` | FAQ rich results |
+| `/jobs`, `/jobs/[id]`, `/careers/[slug]`, `/companies/[id]`, `/resources/[slug]` | `BreadcrumbList` | Breadcrumb rich results, clearer site hierarchy signal |
 
 `JobPosting` fields map directly from the `jobs`/`companies` tables in
 [DATABASE.md](./DATABASE.md) (`title`, `description`, `datePosted` ← `posted_at`,
 `employmentType`, `hiringOrganization` ← `companies.name`, `jobLocation`, `baseSalary` ←
 `salary_min`/`salary_max`/`currency`) — no separate content authoring needed, so structured data
 stays correct automatically as the `jobs` table updates. `validThrough` is derived from job
-status so expired postings stop appearing as active listings in search results.
+status so expired postings stop appearing as active listings in search results. `Occupation`,
+`DefinedTerm`, and `Article` fields similarly map straight from `career_paths`, `skills`, and
+`resources` respectively — structured data is always generated from the same row that renders
+the page, never hand-authored separately and left to drift.
 
 ### 2.5 Dynamic Open Graph images
 
-`app/jobs/[id]/opengraph-image.tsx` (Next.js `ImageResponse` / `@vercel/og`) generates a
-branded share-card per job (title, company, location) at request time, cached — so a job link
-shared on LinkedIn/Slack/Twitter renders a real preview instead of a generic screenshot.
+One `opengraph-image.tsx` (Next.js `ImageResponse` / `@vercel/og`) route per public content
+type — `/jobs/[id]`, `/careers/[slug]`, `/companies/[id]`, `/resources/[slug]` — each generating
+a branded share-card (title + the field that matters for that type: company/location for jobs,
+category for resources) at request time, cached at the edge. A shared card template/component
+keeps the visual style consistent across content types rather than four one-off designs.
+
+### 2.6 Twitter/X Cards
+
+Set alongside Open Graph in the same `generateMetadata()` call (`twitter: { card:
+"summary_large_image", title, description, images }`), not a separate implementation path — the
+OG image route from §2.5 is reused as the Twitter image so there's one image asset per page, not
+two. Root layout sets a default card as a fallback for any page that doesn't override it.
+
+### 2.7 Image optimization (WebP/AVIF)
+
+All content images go through `next/image`, which serves AVIF where the browser supports it,
+falling back to WebP, then the original format — no manually-maintained multi-format image
+pipeline. Applies to job/company logos, resource article images, and any landing-page imagery;
+the 3D hero canvas and decorative SVGs are exempt (not raster images). Every `next/image` usage
+sets explicit `width`/`height` (or `fill` with a sized container) so images never cause layout
+shift, tying directly into the CLS budget in §4.
 
 ## 3. On-page / content SEO
 
@@ -126,16 +170,27 @@ shared on LinkedIn/Slack/Twitter renders a real preview instead of a generic scr
   interview practice"); job pages target long-tail, highly specific queries ("[title] jobs at
   [company]", "[title] remote jobs") purely as a byproduct of accurate structured content — no
   keyword stuffing.
-- **Internal linking:** landing page sections link to their corresponding feature/marketing
-  detail anchors; job listing pages cross-link to related jobs (same company, same skill
-  cluster) using the existing embedding similarity from
-  [AI_ARCHITECTURE.md §5](./AI_ARCHITECTURE.md#5-embeddings--vector-search) — SEO value is a
-  free side effect of a feature that already exists for recommendations.
+- **Internal linking / topic clusters:** the five public content types cross-link deliberately
+  rather than sitting in isolation — a `/careers/[slug]` page links out to its required
+  `/skills/[slug]` pages (via `career_path_skills`) and to matching `/jobs` results; a
+  `/skills/[slug]` page links to the `/careers/[slug]` pages that require it and to
+  `/resources/[slug]` articles about that skill; a `/jobs/[id]` page links to its
+  `/companies/[id]` page and to related jobs (same company, same skill cluster) via the
+  embedding similarity already computed for recommendations
+  ([AI_ARCHITECTURE.md §5](./AI_ARCHITECTURE.md#5-embeddings--vector-search)). This turns
+  "career → skill → job → company → resource" into a real crawlable graph instead of five
+  disconnected page types, which is both better for users and the single biggest lever for
+  getting the long-tail pages (individual skills, individual careers) discovered and ranked —
+  entirely a byproduct of relationships the product already models in
+  [DATABASE.md §2.6](./DATABASE.md#26-public-content--seo), not extra content work.
 - **Alt text:** required on every content image (enforced by lint rule / component prop, not a
   convention that quietly rots); the 3D hero canvas and decorative visuals get `aria-hidden` and
   contribute no alt text burden since they're non-informational.
-- **URL structure:** clean, human-readable slugs (`/jobs/senior-ai-engineer-acme-corp-<short-id>`
-  rather than a bare UUID) — the short ID keeps URLs unique and stable even if a title is edited.
+- **URL structure:** clean, human-readable, stable slugs across every content type —
+  `/careers/ai-engineer`, `/skills/machine-learning`, `/resources/how-to-answer-system-design-questions`
+  (from each table's `slug` column), and `/jobs/senior-ai-engineer-acme-corp-<short-id>` (title
+  slug + short ID, since job titles aren't unique the way a curated career/skill/article slug is
+  — the short ID keeps the URL unique and stable even if the title text is edited).
 
 ## 4. Core Web Vitals & performance as a ranking factor
 
@@ -156,16 +211,23 @@ dashboard's budget is looser since it isn't an SEO surface).
 
 ## 5. Rendering & freshness strategy for indexable routes
 
-- Marketing pages: fully static (SSG) at build time, revalidated on deploy.
-- `/jobs` and `/jobs/[id]`: **Incremental Static Regeneration** — statically served for
-  performance/SEO, revalidated on a short interval (e.g. 5–15 min) so newly ingested jobs and
-  status changes (closed postings) reach crawlers without a full redeploy.
+- Marketing pages (`/`): fully static (SSG) at build time, revalidated on deploy.
+- `/jobs`, `/jobs/[id]`: **Incremental Static Regeneration**, short revalidate interval (e.g.
+  5–15 min) — the highest-churn content, so newly ingested jobs and status changes (closed
+  postings) reach crawlers without a full redeploy.
+- `/careers/[slug]`, `/skills/[slug]`, `/companies/[id]`, `/resources/[slug]`: ISR with a longer
+  revalidate interval (e.g. hours, not minutes) — this content changes far less often than job
+  listings, so the freshness/build-cost trade-off favors a slower revalidation cadence; an
+  on-demand `revalidatePath()` call triggered from the admin content editor (Phase 13) handles
+  the rare case of needing an immediate update (e.g. correcting a published article).
 - No SEO-relevant content is ever client-fetched-only (i.e. rendered exclusively via
   `useEffect` + client-side `fetch`) — crawlers must see real content in the initial HTML.
 
 ## 6. Search engine setup (post-deployment checklist)
 
-Executed once a production domain exists (Phase 16, [DEPLOYMENT.md](./DEPLOYMENT.md)):
+Baseline steps execute once a production domain exists (Phase 16); items 4–7 are revisited and
+made durable in Phase 17 alongside the full production monitoring stack. See
+[DEPLOYMENT.md §6](./DEPLOYMENT.md#6-domain-https-and-seo-go-live-checklist):
 
 1. **Domain/canonicalization:** pick one canonical host (`https://careerai.example.com`, no
    `www`/non-`www` split) and 301-redirect the other variant; enforce HTTPS redirect at the edge.

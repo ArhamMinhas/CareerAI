@@ -98,9 +98,26 @@ DELETE /api/v1/resumes/{id}
 ### Skills
 ```
 GET    /api/v1/skills                      -> taxonomy browse/search
-GET    /api/v1/skills/{id}
+GET    /api/v1/skills/{id_or_slug}
 GET    /api/v1/skills/gaps?target_role=ai_engineer
 POST   /api/v1/skills/gaps/refresh
+```
+
+### Public content (SEO surface — no auth required)
+
+Backs the indexable `/careers/[slug]`, `/skills/[slug]`, `/companies/[id]`, `/resources/[slug]`
+pages in [SEO.md](./SEO.md); reads `career_paths`/`resources`/`companies` from
+[DATABASE.md §2.6](./DATABASE.md#26-public-content--seo). Public, cacheable (long-TTL,
+`Cache-Control` set for CDN caching at the edge), and unauthenticated — these are the routes
+Next.js SSR/ISR calls at build/revalidate time, not something a logged-in user's browser hits
+directly per request.
+```
+GET    /api/v1/careers                     -> list published career paths
+GET    /api/v1/careers/{slug}              -> career path detail + required skills
+GET    /api/v1/companies/{id}
+GET    /api/v1/companies/{id}/jobs         -> jobs at this company (for the company page)
+GET    /api/v1/resources                   -> list published articles, filter by category/tag
+GET    /api/v1/resources/{slug}
 ```
 
 ### Career

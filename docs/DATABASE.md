@@ -24,7 +24,7 @@ starting Phase 1 (core identity tables) and extended per-phase (see [ROADMAP.md]
 
 ## 2. Entity groups (ERDs)
 
-The full schema is 29 tables; splitting into logical groups keeps each diagram readable. Every
+The full schema is 32 tables; splitting into logical groups keeps each diagram readable. Every
 table is defined in detail in §3.
 
 ### 2.1 Identity & Profile
@@ -104,8 +104,10 @@ erDiagram
     SKILLS {
         uuid id PK
         text name UK
+        text slug UK
         text category
         text[] synonyms
+        text seo_summary
         vector embedding
     }
     USER_SKILLS {
@@ -134,8 +136,10 @@ erDiagram
     COMPANIES {
         uuid id PK
         text name
+        text slug UK
         text industry
         text logo_url
+        text description
     }
     JOBS {
         uuid id PK
@@ -310,7 +314,7 @@ erDiagram
     }
     EMBEDDINGS {
         uuid id PK
-        text owner_type "resume|job|skill|learning_resource|interview_question|kb_chunk"
+        text owner_type "resume|job|skill|learning_resource|interview_question|career_path|resource|kb_chunk"
         uuid owner_id
         vector embedding
         text model
@@ -321,6 +325,70 @@ erDiagram
 `EMBEDDINGS` is a polymorphic table used for RAG knowledge-base chunks and any owner type that
 doesn't warrant its own dedicated `vector` column; high-traffic lookups (skills, jobs) keep a
 denormalized `vector` column directly on the entity table for join-free similarity search.
+
+### 2.6 Public Content & SEO
+
+Two tables back the SEO-indexable, publicly-crawlable content routes in
+[SEO.md §1](./SEO.md#1-what-gets-indexed-vs-what-doesnt) (`/careers/[slug]`, `/skills/[slug]`,
+`/companies/[id]`, `/resources/[slug]`). Both are deliberately **dual-purpose**: the same row
+that renders a public SEO page also feeds the product's own AI features, so content is authored
+once, not duplicated between "marketing content" and "app data."
+
+```mermaid
+erDiagram
+    CAREER_PATHS ||--o{ CAREER_PATH_SKILLS : requires
+    SKILLS ||--o{ CAREER_PATH_SKILLS : referenced_by
+    RESOURCES ||--o{ LEARNING_RESOURCES : linked_from
+
+    CAREER_PATHS {
+        uuid id PK
+        text slug UK
+        text title
+        text summary
+        text description_md
+        text[] related_job_titles
+        vector embedding
+        boolean published
+        timestamptz created_at
+    }
+    CAREER_PATH_SKILLS {
+        uuid id PK
+        uuid career_path_id FK
+        uuid skill_id FK
+        int weight
+        boolean is_core
+    }
+    RESOURCES {
+        uuid id PK
+        text slug UK
+        text title
+        text summary
+        text body_md
+        text category
+        text[] tags
+        vector embedding
+        boolean published
+        timestamptz published_at
+        timestamptz updated_at
+    }
+```
+
+- `CAREER_PATHS` is what `/careers/[slug]` (e.g. `/careers/ai-engineer`) renders, and is the
+  same curated role/skill profile the Skill Gap Engine diffs a user's skills against
+  ([ML_PIPELINE.md §2.3](./ML_PIPELINE.md#23-skill-gap-classification)) — `CAREER_PATH_SKILLS`
+  is the structured join the gap engine reads; `description_md`/`summary` is what the public page
+  renders.
+- `RESOURCES` is what `/resources/[slug]` renders **and** the source content the RAG knowledge
+  base ingests ([AI_ARCHITECTURE.md §6](./AI_ARCHITECTURE.md#6-rag-pipeline)) — `kb_ingest.py`
+  chunks `body_md` into `EMBEDDINGS` rows for retrieval, while the same row is served directly
+  (rendered from `body_md`) as a public article page. `resources.embedding` is a whole-document
+  embedding used for "related articles" internal linking; per-chunk embeddings for RAG retrieval
+  live in `EMBEDDINGS` (`owner_type = 'resource'`).
+- `published`/`published_at` gates what's in the sitemap and public API responses — draft rows
+  are queryable internally (e.g. by an admin editor, Phase 13) but never served publicly or
+  indexed.
+- `COMPANIES` (§2.3) already backs `/companies/[id]`; no new table needed there beyond the
+  `slug`/`description` columns added above.
 
 ## 3. Indexing strategy
 
@@ -333,7 +401,10 @@ denormalized `vector` column directly on the entity table for join-free similari
 | `job_matches` | unique btree on `(user_id, job_id)`, btree on `(user_id, match_score desc)` | dedupe + ranked match list |
 | `user_skills` | unique btree on `(profile_id, skill_id)` | dedupe |
 | `job_skills` | unique btree on `(job_id, skill_id)` | dedupe |
-| `skills` | ivfflat on `embedding`, unique btree on `name` | synonym-robust skill resolution |
+| `skills` | ivfflat on `embedding`, unique btree on `name`, unique btree on `slug` | synonym-robust skill resolution + `/skills/[slug]` lookup |
+| `companies` | unique btree on `slug` | `/companies/[id]` (slug-in-URL) lookup |
+| `career_paths` | unique btree on `slug`, partial btree on `slug WHERE published` | `/careers/[slug]` lookup + sitemap generation |
+| `resources` | unique btree on `slug`, btree on `(published, published_at desc)` | `/resources/[slug]` lookup + sitemap/listing ordering |
 | `ai_conversations` | btree on `(user_id, created_at desc)`, btree on `(feature, created_at)` | cost/usage dashboards |
 | `audit_logs` | btree on `(user_id, created_at desc)` | admin audit trail |
 | `embeddings` | ivfflat on `embedding`, btree on `(owner_type, owner_id)` | RAG retrieval |

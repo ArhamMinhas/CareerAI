@@ -1,7 +1,7 @@
 # CareerAI — System Architecture
 
 Status: **Phase 0 — Architecture design.** No application code exists yet; this document is
-the contract that Phases 1–16 implement against. See [ROADMAP.md](./ROADMAP.md) for the phase
+the contract that Phases 1–17 implement against. See [ROADMAP.md](./ROADMAP.md) for the phase
 breakdown and [../README.md](../README.md) for the repository layout.
 
 ## 1. Design goals
@@ -32,31 +32,29 @@ flowchart TB
         Browser["Browser / Mobile Web"]
     end
 
-    subgraph Edge
-        CDN["CDN / Static Assets"]
+    subgraph Vercel["Vercel"]
+        CDN["Edge CDN"]
+        WebApp["apps/web — Next.js\nServer + Client Components"]
     end
 
-    subgraph Frontend["apps/web — Next.js (App Router)"]
-        WebApp["Server + Client Components"]
+    subgraph Backend["AWS ECS/Fargate (Railway initially — Phase 16)"]
+        API["apps/api — FastAPI\nREST API v1"]
+        Worker["apps/worker — Celery"]
     end
 
-    subgraph Backend["apps/api — FastAPI"]
-        API["REST API v1"]
-    end
-
-    subgraph Async["apps/worker — Celery"]
-        Worker["Background Workers"]
-    end
-
-    subgraph Data["Data Layer"]
+    subgraph Supabase["Supabase"]
+        Auth["Supabase Auth"]
         PG[("PostgreSQL + pgvector")]
-        Redis[("Redis\ncache + broker")]
-        Storage[("Object Storage\nresume files")]
+        Storage[("Supabase Storage\nresume files")]
+    end
+
+    subgraph Upstash["Upstash"]
+        Redis[("Redis\ncache + Celery broker")]
     end
 
     subgraph External["External Services"]
-        Auth["Supabase Auth"]
         LLM["LLM Providers\nOpenAI / Gemini"]
+        Sentry["Sentry\nerror + release tracking"]
     end
 
     Browser -->|HTTPS| CDN --> WebApp
@@ -71,24 +69,31 @@ flowchart TB
     Worker -->|persist results| PG
     Worker -->|read files| Storage
     API -->|direct calls for\nfast AI ops| LLM
+    WebApp -.->|errors/releases| Sentry
+    API -.->|errors/releases| Sentry
+    Worker -.->|errors/releases| Sentry
 ```
 
 **Why this shape:** the frontend never talks to the database, Redis, storage, or LLM
 providers directly — everything routes through the FastAPI layer, which is the single place
-authorization, validation, rate limiting, and audit logging are enforced (spec §31, §6).
+authorization, validation, rate limiting, and audit logging are enforced (spec §31, §6). Vendor
+choices are deliberately consolidated (Supabase bundles Postgres+pgvector, Auth, and Storage;
+Upstash is serverless Redis with no cluster to manage) so there are fewer accounts, fewer
+credentials, and fewer things to operate for a project at this scope — see §8 for the trade-offs.
 
 ## 3. Component responsibilities
 
-| Component | Responsibility | Does NOT do |
-|---|---|---|
-| `apps/web` (Next.js) | Rendering, client-side state, optimistic UI, calling the REST API | Business logic, direct DB/LLM access, holding service-role secrets |
-| `apps/api` (FastAPI) | AuthN/Z enforcement, validation, orchestration, fast synchronous AI calls, enqueuing slow jobs | Long-running AI/ML work (>2–3s), sending email, heavy file parsing |
-| `apps/worker` (Celery) | Resume parsing, embedding generation, interview evaluation, roadmap generation, analytics rollups, notifications | Serving HTTP requests |
-| PostgreSQL + pgvector | System of record for all relational data *and* vector similarity search | Being a message queue |
-| Redis | Task broker/result backend, response cache, rate-limit counters | Durable storage |
-| Object storage | Raw resume files (PDF/DOCX) | Structured data (that goes to Postgres after parsing) |
-| Supabase Auth | Identity, session issuance, OAuth, password reset/verification | Application-level authorization (roles/permissions live in our DB, see [SECURITY.md](./SECURITY.md)) |
-| LLM providers | Reasoning, extraction, summarization, generation — behind our own provider abstraction | Deterministic scoring/ranking (see [AI_ARCHITECTURE.md](./AI_ARCHITECTURE.md)) |
+| Component | Responsibility | Does NOT do | Runs on |
+|---|---|---|---|
+| `apps/web` (Next.js) | Rendering, client-side state, optimistic UI, calling the REST API, SEO surface (SSR/SSG) | Business logic, direct DB/LLM access, holding service-role secrets | Vercel |
+| `apps/api` (FastAPI) | AuthN/Z enforcement, validation, orchestration, fast synchronous AI calls, enqueuing slow jobs | Long-running AI/ML work (>2–3s), sending email, heavy file parsing | Railway (Phase 16) → AWS ECS/Fargate (Phase 17) |
+| `apps/worker` (Celery) | Resume parsing, embedding generation, interview evaluation, roadmap generation, analytics rollups, notifications, ML inference | Serving HTTP requests | Railway (Phase 16) → AWS ECS/Fargate (Phase 17) |
+| PostgreSQL + pgvector | System of record for all relational data *and* vector similarity search | Being a message queue | Supabase |
+| Redis | Task broker/result backend, response cache, rate-limit counters | Durable storage | Upstash |
+| Object storage | Raw resume files (PDF/DOCX) | Structured data (that goes to Postgres after parsing) | Supabase Storage (or AWS S3 — see [DEPLOYMENT.md §5](./DEPLOYMENT.md#5-deployment-targets)) |
+| Supabase Auth | Identity, session issuance, OAuth, password reset/verification | Application-level authorization (roles/permissions live in our DB, see [SECURITY.md](./SECURITY.md)) | Supabase |
+| LLM providers | Reasoning, extraction, summarization, generation — behind our own provider abstraction | Deterministic scoring/ranking (see [AI_ARCHITECTURE.md](./AI_ARCHITECTURE.md)) | OpenAI / Gemini cloud APIs |
+| Sentry | Error tracking, release health, performance tracing | Business logging (that's `ai_conversations`/`audit_logs` in Postgres) | Sentry cloud |
 
 ## 4. Backend layering (`apps/api`)
 
@@ -159,41 +164,91 @@ sequenceDiagram
 This same **upload → enqueue → 202 → background processing → poll/notify** pattern is reused
 for interview evaluation and roadmap generation (spec §33).
 
-## 6. Deployment topology (target — see [DEPLOYMENT.md](./DEPLOYMENT.md))
+## 6. Deployment topology
+
+Two variants: the fast initial deploy (Phase 16) and the hardened target (Phase 17). Both share
+the same application code and the same managed data layer — only where `apps/api`/`apps/worker`
+run, and how much automation/scaling wraps them, changes.
+
+### 6.1 Phase 16 — initial deployment
 
 ```mermaid
 flowchart TB
     subgraph Vercel
         web["apps/web"]
     end
-    subgraph "Cloud Provider (Render/Fly/Railway-class)"
-        api1["apps/api instance 1"]
-        api2["apps/api instance 2"]
-        worker1["apps/worker instance 1"]
-        worker2["apps/worker instance 2 (autoscaled)"]
+    subgraph "Railway (or AWS ECS/Fargate directly)"
+        api["apps/api"]
+        worker["apps/worker"]
     end
-    subgraph Managed Data
-        pg[("Managed PostgreSQL\n+ pgvector")]
-        redis[("Managed Redis")]
-        s3[("S3-compatible storage")]
+    subgraph Supabase
+        pg[("PostgreSQL + pgvector")]
+        auth["Supabase Auth"]
+        storage[("Supabase Storage")]
     end
-    lb["Load Balancer"] --> api1
-    lb --> api2
-    web -->|HTTPS| lb
-    api1 --> pg
-    api2 --> pg
-    api1 --> redis
-    api2 --> redis
-    worker1 --> pg
-    worker2 --> pg
-    worker1 --> redis
-    worker2 --> redis
-    api1 --> s3
-    worker1 --> s3
+    upstash[("Upstash Redis")]
+
+    web -->|HTTPS| api
+    api --> pg
+    api --> auth
+    api --> upstash
+    api --> storage
+    worker --> pg
+    worker --> upstash
+    worker --> storage
 ```
 
-Stateless API/worker instances scale horizontally behind a load balancer; state lives only in
-Postgres, Redis, and object storage.
+Goal: a real, working, HTTPS production URL with minimal infrastructure to hand-manage —
+proves the pipeline end-to-end before investing in autoscaling.
+
+### 6.2 Phase 17 — target production topology
+
+```mermaid
+flowchart TB
+    subgraph Vercel["Vercel (Edge CDN)"]
+        web["apps/web"]
+    end
+    subgraph AWS["AWS (VPC)"]
+        subgraph ECS["ECS/Fargate — autoscaled"]
+            api1["apps/api task 1"]
+            api2["apps/api task 2"]
+            worker1["apps/worker task 1"]
+            worker2["apps/worker task N (queue-depth autoscaled)"]
+        end
+        alb["Application Load Balancer"]
+    end
+    subgraph Supabase
+        pg[("PostgreSQL + pgvector\n+ connection pooler")]
+        auth["Supabase Auth"]
+        storage[("Supabase Storage / S3")]
+    end
+    upstash[("Upstash Redis")]
+    sentry["Sentry"]
+
+    web -->|HTTPS| alb
+    alb --> api1
+    alb --> api2
+    api1 --> pg
+    api2 --> pg
+    api1 --> auth
+    api2 --> auth
+    api1 --> upstash
+    api2 --> upstash
+    api1 --> storage
+    worker1 --> pg
+    worker2 --> pg
+    worker1 --> upstash
+    worker2 --> upstash
+    worker1 --> storage
+    api1 -.-> sentry
+    worker1 -.-> sentry
+    web -.-> sentry
+```
+
+Stateless API/worker tasks scale horizontally behind the load balancer (API on request
+concurrency, workers on queue depth); state lives only in Postgres, Redis, and object storage.
+Full rollout detail (WAF, secrets rotation, IaC, monitoring) is in
+[DEPLOYMENT.md](./DEPLOYMENT.md) and [ROADMAP.md — Phase 17](./ROADMAP.md#phase-17--cloud--seo--production-deployment-).
 
 ## 7. Cross-cutting concerns and where they're documented
 
@@ -218,13 +273,18 @@ Postgres, Redis, and object storage.
 | Supabase Auth over hand-rolled auth | Custom JWT auth, Auth0 | Managed email verification/password reset/OAuth reduces surface area; RBAC and audit logging still live in our own DB, so we're not locked into Supabase for authorization logic |
 | Monorepo (apps/ + packages/) | Polyrepo (separate frontend/backend repos) | Shared types stay in sync, single PR can span a full-stack feature, one CI pipeline |
 | LLM provider abstraction (not a direct SDK call) | Calling OpenAI SDK directly from services | Swappable providers, centralized cost tracking/logging, consistent structured-output validation — see [AI_ARCHITECTURE.md](./AI_ARCHITECTURE.md) |
+| Supabase for Postgres+pgvector+Auth+Storage | Self-hosted Postgres, separate auth provider, separate S3 bucket | One vendor/dashboard for the whole data layer during early phases; each piece (DB, auth, storage) can still be swapped independently later since services depend on interfaces, not the vendor SDK directly |
+| Upstash Redis (serverless) | Self-managed Redis, ElastiCache | No cluster to operate for a project this size; pay-per-request fits bursty AI-triggered background job load; trivial to swap for ElastiCache later if sustained throughput needs it |
+| Railway for initial API/worker hosting, migrating to AWS ECS/Fargate in Phase 17 | Going straight to AWS ECS/Fargate | Railway gets a working production deploy in hours, not days, for Phase 16; ECS/Fargate is adopted once autoscaling, private networking, and IaC are actually needed (Phase 17) rather than paid for upfront |
+| Sentry for error/release monitoring | Cloud-provider-native logging only | Structured error grouping, release tracking, and source-mapped stack traces across web/api/worker in one place, on top of (not instead of) the `ai_conversations`/`audit_logs` business-event logging in Postgres |
 
 ## 9. Non-functional requirements
 
 - **Scalability:** stateless API/worker layers scale horizontally; expensive work is queued,
   not synchronous; heavy read paths (job search, market analytics) are cacheable in Redis.
 - **Observability:** structured JSON logging with request IDs; AI calls logged to
-  `ai_conversations` with latency/token counts (spec §38, §39).
+  `ai_conversations` with latency/token counts (spec §38, §39); Sentry for error/release
+  tracking across `apps/web`, `apps/api`, and `apps/worker` from Phase 17 onward.
 - **Cost control:** embedding cache, response cache, cheap-model-first routing — detailed in
   [AI_ARCHITECTURE.md §7](./AI_ARCHITECTURE.md#7-cost-control).
 - **Security:** see [SECURITY.md](./SECURITY.md) for the full threat-model-driven control list.

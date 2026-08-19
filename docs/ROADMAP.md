@@ -48,14 +48,18 @@ scaffolding, structured-output validation, `ai_conversations` logging — per
 
 ## Phase 6 — Skill Gap Engine ⬜
 
-Skill taxonomy, career skill profiles, gap comparison, recommendations, visualizations.
+Skill taxonomy, career skill profiles (`career_paths` table), gap comparison, recommendations,
+visualizations. Also ships the public, SEO-indexable `/careers/[slug]` and `/skills/[slug]`
+pages ([SEO.md §1](./SEO.md#1-what-gets-indexed-vs-what-doesnt)) — these render the same curated
+role/skill data the gap engine uses internally, so the content is authored once.
 
 ## Phase 7 — Job Recommendation ⬜
 
 Job database + ingestion, semantic search, hybrid recommendation/ranking
-([ML_PIPELINE.md §2.2](./ML_PIPELINE.md#22-job-match-score)), `/jobs/[id]` pages — this is also
-when the programmatic-SEO surface from [SEO.md §2.3](./SEO.md#23-sitemap-appsitemapts) and
-`JobPosting` structured data go live.
+([ML_PIPELINE.md §2.2](./ML_PIPELINE.md#22-job-match-score)), `/jobs/[id]` and `/companies/[id]`
+pages — this is also when the programmatic-SEO surface from
+[SEO.md §2.3](./SEO.md#23-sitemap-appsitemapts) and `JobPosting`/`Organization` structured data
+go live.
 
 ## Phase 8 — Data Science ⬜
 
@@ -66,7 +70,9 @@ evaluation against baselines.
 ## Phase 9 — RAG ⬜
 
 Knowledge base ingestion/chunking, embeddings, retrieval, grounded generation with source
-citations — per [AI_ARCHITECTURE.md §6](./AI_ARCHITECTURE.md#6-rag-pipeline).
+citations — per [AI_ARCHITECTURE.md §6](./AI_ARCHITECTURE.md#6-rag-pipeline). The same
+`resources` content table doubles as the public, SEO-indexable `/resources/[slug]` article
+pages — one content source, two consumers (RAG grounding + organic search).
 
 ## Phase 10 — Learning Roadmap ⬜
 
@@ -98,12 +104,49 @@ Full OWASP pass, rate limiting, caching, performance/Core Web Vitals budgets (in
 Lighthouse CI gate from [SEO.md §4](./SEO.md#4-core-web-vitals--performance-as-a-ranking-factor)),
 accessibility audit, full test coverage of critical flows, logging/error-handling completeness.
 
-## Phase 16 — Deployment ⬜
+## Phase 16 — Deployment (Initial) ⬜
 
-Production deploy of web/API/worker/Redis/DB, DNS/HTTPS, environment configuration, monitoring,
-CI/CD promotion pipeline, and the SEO go-live checklist in
-[DEPLOYMENT.md §6](./DEPLOYMENT.md#6-domain-https-and-seo-go-live-checklist) (Search Console,
-Bing Webmaster, sitemap submission).
+First real deployment, optimized for getting a working production URL quickly rather than
+final scale: `apps/web` on Vercel, `apps/api`/`apps/worker` on Railway (or AWS ECS/Fargate
+directly if that's not meaningfully slower to stand up), Supabase for Postgres+pgvector+Auth,
+Upstash Redis, GitHub Actions CI/CD promoting `main` → staging → production, custom domain +
+HTTPS, and the baseline SEO go-live checklist in
+[DEPLOYMENT.md §6](./DEPLOYMENT.md#6-domain-https-and-seo-go-live-checklist) (canonical domain,
+Search Console + Bing Webmaster verification, sitemap submission). This phase proves the whole
+pipeline works end-to-end in the cloud.
+
+## Phase 17 — Cloud + SEO + Production Deployment ⬜
+
+Hardens Phase 16 into the target production architecture in
+[ARCHITECTURE.md §6](./ARCHITECTURE.md#6-deployment-topology) and closes out the full SEO spec,
+rather than the baseline subset shipped in Phase 2/7/16:
+
+- **Cloud infrastructure:** migrate `apps/api`/`apps/worker`/ML inference off Railway onto AWS
+  ECS/Fargate (autoscaling task definitions, private VPC networking to Supabase/Upstash),
+  Vercel CDN/edge config tuned, custom domain + SSL fully automated (no manual cert steps),
+  infrastructure-as-code for the ECS stack rather than console-clicked resources.
+- **SEO — full rollout:** every public route type live and validated —
+  `/`, `/careers`, `/careers/[slug]`, `/skills/[slug]`, `/jobs`, `/jobs/[id]`, `/companies/[id]`,
+  `/resources/[slug]` — each with SSR/SSG per [SEO.md §5](./SEO.md#5-rendering--freshness-strategy-for-indexable-routes),
+  dynamic metadata, Open Graph + Twitter Cards, canonical URLs, `sitemap.xml`, `robots.txt`,
+  `JobPosting`/`Organization`/`BreadcrumbList`/`FAQPage` JSON-LD, semantic HTML with correct
+  heading hierarchy, WebP/AVIF images via `next/image`, and the internal-linking topic clusters
+  in [SEO.md §3](./SEO.md#3-on-page--content-seo). Authenticated app routes (`/dashboard`,
+  `/resume`, `/analytics`, `/interviews`, `/settings`, `/admin/*`) are confirmed `noindex` and
+  excluded from the sitemap.
+- **Core Web Vitals:** production Lighthouse CI budgets enforced on every public route (not just
+  `/`), per [SEO.md §4](./SEO.md#4-core-web-vitals--performance-as-a-ranking-factor).
+- **Monitoring & logging:** Sentry wired into `apps/web`, `apps/api`, and `apps/worker` for
+  error tracking/release tracking; structured cloud logs (CloudWatch or platform-native)
+  correlated by request ID; uptime + AI-cost alerting active.
+- **Scaling:** ECS service autoscaling policies (CPU/queue-depth based for workers), Postgres
+  connection pooling (PgBouncer/Supabase pooler) sized for expected load.
+- **Production security:** WAF/rate limiting at the edge, secrets rotation policy, dependency
+  and container image scanning in CI, final OWASP re-check against the live environment (not
+  just the Phase 15 code-level pass).
+
+This is the phase that turns "an AI application running locally" into a properly cloud-deployed,
+SEO-discoverable production product.
 
 ## Definition of Done
 

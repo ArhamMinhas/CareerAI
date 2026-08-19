@@ -27,24 +27,27 @@ discipline shows up concretely.
 | [docs/AI_ARCHITECTURE.md](docs/AI_ARCHITECTURE.md) | LLM provider abstraction, embeddings, RAG, agents, prompt management, evaluation, cost control |
 | [docs/ML_PIPELINE.md](docs/ML_PIPELINE.md) | Deterministic scoring formulas, trained ML models, data science pipeline, MLOps |
 | [docs/UI_ARCHITECTURE.md](docs/UI_ARCHITECTURE.md) | Frontend rendering strategy, design system, animation, 3D, responsive/accessibility |
-| [docs/SEO.md](docs/SEO.md) | Technical + on-page SEO, structured data, sitemaps, Core Web Vitals, search-engine setup so the deployed site is actually discoverable |
+| [docs/SEO.md](docs/SEO.md) | Technical + on-page SEO across the full public surface (careers, skills, jobs, companies, resources), structured data, sitemaps, Core Web Vitals, search-engine setup so the deployed site is actually discoverable |
 | [docs/SECURITY.md](docs/SECURITY.md) | AuthN/Z, OWASP mitigations, secrets, audit logging, data privacy |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Environments, Docker, CI/CD, deployment targets, go-live checklist |
 | [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) | Local setup, workflow, code style, testing expectations |
-| [docs/ROADMAP.md](docs/ROADMAP.md) | Phase-by-phase plan (0–16) and status |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | Phase-by-phase plan (0–17) and status |
 
 ## Technology stack
 
 - **Frontend:** Next.js (App Router), React, TypeScript, Tailwind CSS, Framer Motion, GSAP,
-  React Three Fiber, Lenis, Recharts.
-- **Backend:** Python, FastAPI, Pydantic, SQLAlchemy/SQLModel, Alembic.
-- **Data:** PostgreSQL + pgvector, Redis (cache + Celery broker).
-- **AI/ML:** provider-agnostic LLM abstraction (OpenAI/Gemini), embeddings + RAG, scikit-learn/
-  XGBoost for trained models.
-- **Auth:** Supabase Auth.
-- **Infra:** Docker, GitHub Actions, Vercel (web) + container platform (API/worker).
+  React Three Fiber, Lenis, Recharts. Deployed on **Vercel**.
+- **Backend:** Python, FastAPI, Pydantic, SQLAlchemy/SQLModel, Alembic. Deployed on **Railway**
+  initially, migrating to **AWS ECS/Fargate** in Phase 17.
+- **Data:** PostgreSQL + pgvector and Auth on **Supabase**; **Upstash Redis** for cache + Celery
+  broker; resume files on Supabase Storage (S3-compatible alternative available).
+- **AI/ML:** provider-agnostic LLM abstraction (OpenAI/Gemini cloud APIs), embeddings + RAG,
+  scikit-learn/XGBoost for trained models.
+- **Infra:** Docker, GitHub Actions CI/CD, **Sentry** for error/release monitoring (Phase 17).
 
 Full rationale for each choice: [docs/ARCHITECTURE.md §8](docs/ARCHITECTURE.md#8-key-architectural-decisions-adr-style-summary).
+Concrete deployment targets and the Phase 16 → 17 migration path:
+[docs/DEPLOYMENT.md §5](docs/DEPLOYMENT.md#5-deployment-targets).
 
 ## Repository structure
 
