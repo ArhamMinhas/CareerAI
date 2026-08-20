@@ -1,15 +1,11 @@
-import { FileText, Target, Briefcase, MessagesSquare } from "lucide-react";
+import { Target, Briefcase, MessagesSquare } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ButtonLink } from "@/components/ui/button";
 import { SkillNetwork } from "@/components/three/skill-network";
+import { ResumeScoreCard } from "@/components/resume/resume-score-card";
 import { cardHover, cn } from "@/lib/utils";
 
 const metrics = [
-  {
-    icon: FileText,
-    title: "Resume score",
-    description: "Upload a resume to get your first score.",
-  },
   {
     icon: Target,
     title: "Skill gaps",
@@ -33,8 +29,7 @@ export default function DashboardPage() {
       <div className="flex flex-col gap-1.5">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Dashboard</h1>
         <p className="text-sm text-muted-foreground">
-          This is the shell. Resume analysis, skill gaps, and job matching ship in later
-          phases.
+          Resume analysis is live. Skill gaps and job matching ship in later phases.
         </p>
       </div>
 
@@ -57,6 +52,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:col-span-2">
+          <ResumeScoreCard />
           {metrics.map((metric) => (
             <EmptyState key={metric.title} {...metric} />
           ))}

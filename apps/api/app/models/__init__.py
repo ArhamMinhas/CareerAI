@@ -6,6 +6,7 @@ from app.models.education import Education
 from app.models.experience import Experience
 from app.models.profile import Profile
 from app.models.project import Project
+from app.models.resume import FileType, Resume, ResumeStatus, ResumeVersion
 from app.models.skill import Proficiency, Skill, SkillSource, UserSkill
 from app.models.user import Role, User
 
@@ -13,9 +14,13 @@ __all__ = [
     "CareerGoal",
     "Education",
     "Experience",
+    "FileType",
     "Proficiency",
     "Profile",
     "Project",
+    "Resume",
+    "ResumeStatus",
+    "ResumeVersion",
     "Role",
     "Skill",
     "SkillSource",

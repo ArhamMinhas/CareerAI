@@ -6,11 +6,12 @@ personalized learning roadmap, AI mock interviews, and career/job-market analyti
 combination of deterministic algorithms, trained ML models, retrieval (RAG), and LLM reasoning,
 never a bare "ask the LLM for everything" wrapper.
 
-**Status: Phase 3 — User / Profile System ✅.** Monorepo, Next.js 16 + FastAPI apps, PostgreSQL +
-pgvector via Docker Compose, base CI, the full landing page/dashboard shell/3D hero/theme/SEO
-plumbing from Phase 2, and now real auth (email/password sign-in/up, route-gated dashboard) plus
-a full profile system — education, experience, projects, skills, career goals — with CRUD UI and
-API. See [docs/ROADMAP.md](docs/ROADMAP.md) for the full phase-by-phase status.
+**Status: Phase 4 — Resume Intelligence ✅.** Monorepo, Next.js 16 + FastAPI apps, PostgreSQL +
+pgvector via Docker Compose, base CI, the landing page/dashboard/theme/SEO plumbing from Phase 2,
+the profile system (education, experience, projects, skills, career goals) from Phase 3, email/
+password + Google OAuth, and now real resume intelligence — async PDF/DOCX upload, NLP + LLM
+extraction, deterministic explainable scoring, and a score-breakdown UI. See
+[docs/ROADMAP.md](docs/ROADMAP.md) for the full phase-by-phase status.
 
 ## Why this project exists
 

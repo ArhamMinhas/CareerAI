@@ -38,8 +38,10 @@ class Settings(BaseSettings):
     # Object storage (docs/DATABASE.md, docs/DEPLOYMENT.md §5 — Supabase Storage by default)
     storage_bucket: str = ""
 
-    # AI / LLM providers (docs/AI_ARCHITECTURE.md) — unused until Phase 5, kept here so
-    # config validation has a single source of truth as soon as a phase needs them.
+    # AI / LLM providers (docs/AI_ARCHITECTURE.md). `openai_api_key`/`llm_model_reasoning` are
+    # used directly by app/ai/resume_extraction.py since Phase 4 — a narrow stopgap ahead of
+    # the full provider abstraction Phase 5 formally owns (see that module's docstring).
+    # `gemini_api_key`/`llm_provider`/`llm_model_default` stay unused until Phase 5.
     openai_api_key: str = ""
     gemini_api_key: str = ""
     llm_provider: str = "openai"

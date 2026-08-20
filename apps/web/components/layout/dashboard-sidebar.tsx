@@ -22,7 +22,7 @@ import { SignOutButton } from "@/components/auth/sign-out-button";
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/dashboard/profile", label: "Profile", icon: User },
-  { href: "/resume", label: "Resume", icon: FileText },
+  { href: "/dashboard/resume", label: "Resume", icon: FileText },
   { href: "/skills", label: "Skills", icon: Target },
   { href: "/career", label: "Career", icon: Compass },
   { href: "/jobs", label: "Jobs", icon: Briefcase },
@@ -73,7 +73,7 @@ export function DashboardSidebar() {
 
 const mobileNavItems = [
   { href: "/dashboard", label: "Home", icon: LayoutDashboard },
-  { href: "/resume", label: "Resume", icon: FileText },
+  { href: "/dashboard/resume", label: "Resume", icon: FileText },
   { href: "/jobs", label: "Jobs", icon: Briefcase },
   { href: "/roadmap", label: "Roadmap", icon: Map },
   { href: "/settings", label: "Settings", icon: Settings },

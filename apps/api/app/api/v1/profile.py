@@ -3,7 +3,6 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
@@ -12,7 +11,7 @@ from app.models.education import Education
 from app.models.experience import Experience
 from app.models.profile import Profile
 from app.models.project import Project
-from app.models.skill import Skill, UserSkill, slugify
+from app.models.skill import UserSkill
 from app.models.user import User
 from app.schemas.envelope import Envelope, meta_from_request
 from app.schemas.profile import (
@@ -31,6 +30,7 @@ from app.schemas.profile import (
     UserSkillRead,
     UserSkillUpdate,
 )
+from app.services.skill_taxonomy import get_or_create_skill
 
 router = APIRouter(prefix="/profile", tags=["profile"])
 
@@ -261,29 +261,6 @@ async def delete_project(project_id: uuid.UUID, profile: ProfileDep, db: DbDep) 
 # --- Skills (manual entry) --------------------------------------------------------------------
 
 
-async def _get_or_create_skill(name: str, db: AsyncSession) -> Skill:
-    clean_name = name.strip()
-    slug = slugify(clean_name)
-    result = await db.execute(select(Skill).where(Skill.slug == slug))
-    skill = result.scalar_one_or_none()
-    if skill is not None:
-        return skill
-
-    skill = Skill(name=clean_name, slug=slug)
-    db.add(skill)
-    try:
-        await db.commit()
-    except IntegrityError:
-        # Another request created the same skill concurrently (unique slug/name) — re-fetch
-        # rather than erroring, since the caller just wants "the skill row for this name".
-        await db.rollback()
-        result = await db.execute(select(Skill).where(Skill.slug == slug))
-        skill = result.scalar_one()
-    else:
-        await db.refresh(skill)
-    return skill
-
-
 def _user_skill_read(row: UserSkill) -> UserSkillRead:
     return UserSkillRead(
         id=row.id,
@@ -308,7 +285,7 @@ async def list_user_skills(
 async def create_user_skill(
     request: Request, body: UserSkillCreate, profile: ProfileDep, db: DbDep
 ) -> Envelope[UserSkillRead]:
-    skill = await _get_or_create_skill(body.skill_name, db)
+    skill = await get_or_create_skill(db, body.skill_name)
 
     existing = await db.execute(
         select(UserSkill).where(UserSkill.profile_id == profile.id, UserSkill.skill_id == skill.id)

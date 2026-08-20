@@ -117,10 +117,53 @@ CRUD exercised through the real UI for every sub-resource, data confirmed presen
 reload, sign-out confirmed, and the unauthenticated `/dashboard` redirect confirmed — in both
 themes, zero console errors.
 
-## Phase 4 — Resume Intelligence ⬜
+## Phase 4 — Resume Intelligence ✅
 
 Upload (PDF/DOCX), async processing pipeline, deterministic + NLP + LLM extraction, resume
-scoring ([ML_PIPELINE.md §2.1](./ML_PIPELINE.md#21-resume-score)), resume visualization.
+scoring ([ML_PIPELINE.md §2.1](./ML_PIPELINE.md#21-resume-score)), resume visualization. Also
+shipped Google OAuth (`GoogleButton` + `/auth/callback`), completing the auth surface Phase 3
+started with email/password only.
+
+**Backend:** `resumes`/`resume_versions` tables (soft-deleted per docs/DATABASE.md §1 — spec
+explicitly names `resumes` as a soft-delete table). `POST /resumes/upload` streams the file to
+Supabase Storage (`app/core/storage.py`, private bucket + signed download URLs — resumes are
+personal documents, never a public URL) and enqueues `resumes.process`, a Celery task
+(`app/workers/resume_tasks.py`) that: extracts text (`pypdf`/`python-docx`), detects standard
+section headers via regex/keyword matching (`app/services/resume_parsing.py` — a
+dependency-light stand-in for the spaCy pass docs/AI_ARCHITECTURE.md describes, not a trained
+model, per ML_PIPELINE.md §1's "baseline first"), runs LLM structured extraction
+(`app/ai/resume_extraction.py` — one direct, schema-constrained OpenAI call, deliberately
+**not** the full provider abstraction docs/AI_ARCHITECTURE.md §2 describes, since that's
+Phase 5's job and Phase 4 needed extraction working now), computes the deterministic
+`ScoreBreakdown` from ML_PIPELINE.md §2.1's exact formula (`app/services/resume_scoring.py`,
+every sub-score carries `{score, explanation, evidence}`), and additively syncs extracted
+skills into `user_skills` with `source=resume` — the integration point Phase 3's `UserSkill`
+model docstring had already anticipated.
+
+**Frontend:** `/dashboard/resume` — drag-and-drop upload, a status-polling list (queued /
+analyzing / analyzed / failed), and a score breakdown view (expandable explanations + evidence
+per sub-score, extracted skills/experience/education/projects, download/re-analyze/delete).
+The dashboard home's "Resume score" card now shows the real latest score instead of a
+placeholder.
+
+**Two real bugs found and fixed during end-to-end verification** (both only reproduce under
+real infrastructure, not unit tests or curl):
+- `celery_app.py`'s `autodiscover_tasks(["app.workers"])` silently registered nothing — Celery
+  autodiscovery only ever imports a module literally named `tasks.py` inside each package,
+  never arbitrarily-named ones like `resume_tasks.py`. Fixed with an explicit
+  `include=["app.workers.resume_tasks"]` on the `Celery()` constructor, which works regardless
+  of filename and stays legible as more task modules are added.
+- `_decode_supabase_jwt` (`app/core/security.py`) had no `leeway` on `jwt.decode()`. A token
+  used within ~1-2s of being freshly issued by `signInWithPassword` was intermittently
+  rejected, then succeeded seconds later with the *same* token — a clock-skew signature between
+  the token issuer (Supabase's servers) and this verifier (a different machine). Fixed with
+  `leeway=30`, standard practice for any two-machine JWT setup.
+
+**Known gap, explicit scope decision:** `POST /resumes/{id}/analyze`'s `Idempotency-Key` is
+required and enforced against concurrent re-analysis of the *same* resume (409 if already
+processing), but isn't backed by a persistent idempotency-key cache/store — a client retry with
+a fresh key after a completed response could still trigger a second real analysis. Full
+idempotency-key infrastructure is a fast-follow, not blocking for this phase.
 
 ## Phase 5 — AI Infrastructure ⬜
 

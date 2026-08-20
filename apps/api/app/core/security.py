@@ -54,6 +54,14 @@ def _decode_supabase_jwt(token: str) -> TokenPayload:
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
 
+    # A 30s leeway on `iat`/`nbf`/`exp` — the token issuer (Supabase's servers) and this
+    # verifier (this container) are different machines with independently-synced clocks.
+    # Confirmed via real end-to-end testing: a token used within ~1-2s of being issued by
+    # `signInWithPassword` was intermittently rejected here, then succeeded seconds later with
+    # the *same* token once real time caught up to whatever `iat` the token carried — a clock
+    # is exactly what PyJWT's `leeway` exists to tolerate. Docker Desktop's WSL2 VM clock is a
+    # known source of small drift, but this is standard practice for any two-machine JWT setup
+    # regardless of platform, not a workaround for one machine's clock specifically.
     try:
         if alg == "HS256":
             if not settings.supabase_jwt_secret:
@@ -66,6 +74,7 @@ def _decode_supabase_jwt(token: str) -> TokenPayload:
                 settings.supabase_jwt_secret,
                 algorithms=["HS256"],
                 audience="authenticated",
+                leeway=30,
             )
         else:
             if not settings.supabase_url:
@@ -79,6 +88,7 @@ def _decode_supabase_jwt(token: str) -> TokenPayload:
                 signing_key.key,
                 algorithms=["ES256", "RS256"],
                 audience="authenticated",
+                leeway=30,
             )
     except HTTPException:
         raise

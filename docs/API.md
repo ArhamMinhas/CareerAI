@@ -106,15 +106,23 @@ PATCH  /api/v1/career-goals/{id}
 DELETE /api/v1/career-goals/{id}             -> hard delete
 ```
 
-### Resumes
+### Resumes (Phase 4)
+
+Not paginated — a user has few resumes, not an unbounded feed (docs/API.md §1's cursor-
+pagination rule is for genuinely unbounded lists like jobs/notifications). `GET /resumes/{id}`
+includes a short-lived signed download URL (`file_download_url`) rather than a permanent public
+one — the storage bucket is private, resumes are personal documents.
+
 ```
-POST   /api/v1/resumes/upload              -> 202 Accepted, enqueues processing job
-GET    /api/v1/resumes                     -> list (paginated)
-GET    /api/v1/resumes/{id}
+POST   /api/v1/resumes/upload              -> multipart/form-data, 202 Accepted, enqueues processing
+GET    /api/v1/resumes                     -> full list, newest first
+GET    /api/v1/resumes/{id}                -> includes structured_data, score_breakdown, file_download_url
 GET    /api/v1/resumes/{id}/status         -> lightweight polling endpoint
-POST   /api/v1/resumes/{id}/analyze        -> recompute score (idempotency-key required)
-GET    /api/v1/resumes/{id}/versions
-DELETE /api/v1/resumes/{id}
+POST   /api/v1/resumes/{id}/analyze        -> re-score; Idempotency-Key required (400 if missing),
+                                               409 if this resume is already processing — see
+                                               docs/ROADMAP.md Phase 4 for what's and isn't covered
+GET    /api/v1/resumes/{id}/versions       -> one snapshot per completed analysis, newest first
+DELETE /api/v1/resumes/{id}                -> soft delete
 ```
 
 ### Skills

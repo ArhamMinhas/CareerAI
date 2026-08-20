@@ -40,7 +40,13 @@ class LLMProvider(Protocol):
 ```
 
 Services never import `openai` or `google.generativeai` directly — they depend on
-`LLMProvider`. Switching providers, or routing cheap tasks to a cheaper model and complex
+`LLMProvider` — **with one flagged, deliberate exception**: `apps/api/app/ai/resume_extraction.py`
+(Phase 4) calls `openai` directly, since Phase 4 needed real resume extraction working before
+this abstraction existed and Phase 5 (this doc's own phase) is what formally owns building it.
+That module's docstring says so explicitly; when Phase 5 lands, migrate it onto `LLMProvider`
+and remove the exception rather than letting it become precedent for a second one.
+
+Switching providers, or routing cheap tasks to a cheaper model and complex
 reasoning to a stronger one, is a config change (`ai/llm/router.py` + environment variables),
 not a code change across the app (spec §27, §39).
 

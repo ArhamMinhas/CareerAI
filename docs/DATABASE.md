@@ -102,20 +102,21 @@ erDiagram
     }
 ```
 
-(`EDUCATION`/`EXPERIENCE`/`PROJECTS` are also parsed into from resumes — see `RESUMES ||--o{ ...`
-in §2.2 — so their `profile_id` FK is what both the manual-entry Phase 3 UI and the Phase 4
-resume parser write to.)
+**Revised in Phase 4:** the full resume-extraction result (education/experience/projects, not
+just skills) lives in `resumes.structured_data` (jsonb) instead of being merged into these
+tables directly — merging would need real dedup/conflict-resolution UX (what happens when a
+resume's "MIT 2018-2022" collides with a manually-entered "MIT 2018-2021"?) that hasn't been
+designed. Only `SKILLS`/`USER_SKILLS` get auto-synced from a resume (additive, never
+overwrites — see §2.2), since that's a simple "does this skill exist yet" check, not a
+structural merge. Revisit if/when profile auto-fill from a parsed resume is actually wanted.
 
 ### 2.2 Resume & Skills
 
 ```mermaid
 erDiagram
     RESUMES ||--o{ RESUME_VERSIONS : has
-    RESUMES ||--o{ EDUCATION : parsed_into
-    RESUMES ||--o{ EXPERIENCE : parsed_into
-    RESUMES ||--o{ PROJECTS : parsed_into
-    RESUMES ||--o{ USER_SKILLS : parsed_into
-    RESUMES ||--o| EMBEDDINGS : has
+    RESUMES ||--o{ USER_SKILLS : "syncs skills into (additive, source=resume)"
+    RESUMES ||--o| EMBEDDINGS : "has (Phase 5+)"
     SKILLS ||--o{ USER_SKILLS : referenced_by
     SKILLS ||--o{ JOB_SKILLS : referenced_by
     SKILLS ||--o{ SKILL_GAPS : referenced_by
@@ -124,13 +125,15 @@ erDiagram
     RESUMES {
         uuid id PK
         uuid user_id FK
-        text file_url
+        text file_url "storage path, not a public URL — see §1 storage note below"
+        text file_name "original upload filename"
         text file_type "PDF|DOCX"
         enum status "uploaded|processing|completed|failed"
-        jsonb structured_data
+        text failure_reason "set only when status=failed"
+        jsonb structured_data "full extraction: contact, summary, skills, experience, education, projects"
         numeric overall_score
-        jsonb score_breakdown
-        timestamptz created_at
+        jsonb score_breakdown "per-sub-score {score, explanation, evidence} map"
+        timestamptz deleted_at "soft delete, §1"
     }
     RESUME_VERSIONS {
         uuid id PK
@@ -138,6 +141,7 @@ erDiagram
         int version_number
         jsonb structured_data
         numeric overall_score
+        jsonb score_breakdown
     }
     SKILLS {
         uuid id PK
