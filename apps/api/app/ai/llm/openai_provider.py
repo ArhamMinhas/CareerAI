@@ -41,7 +41,20 @@ class OpenAIProvider:
     without a separate manual validation pass."""
 
     def __init__(self) -> None:
-        self._client = AsyncOpenAI(api_key=settings.openai_api_key, max_retries=5)
+        # Constructed lazily, on first real use (see `_get_client`) — not here. `OpenAIProvider`
+        # is instantiated eagerly by `app.ai.llm.router` regardless of whether an OpenAI key is
+        # actually configured (e.g. `settings.llm_provider == "gemini"`, or no key set yet in a
+        # fresh dev environment); the SDK's own constructor raises immediately on a blank key,
+        # which would turn "AI not configured yet" into a hard crash instead of the graceful
+        # degradation this codebase uses elsewhere (docs/CONTRIBUTING.md §2). Deferring
+        # construction into the same try/except that already handles `OpenAIError` turns a
+        # missing key into a normal `AIExtractionError` instead.
+        self._client: AsyncOpenAI | None = None
+
+    def _get_client(self) -> AsyncOpenAI:
+        if self._client is None:
+            self._client = AsyncOpenAI(api_key=settings.openai_api_key, max_retries=5)
+        return self._client
 
     async def complete(
         self, prompt: PromptSpec, *, response_model: type[BaseModel] | None = None
@@ -55,9 +68,10 @@ class OpenAIProvider:
 
         for attempt in range(_MAX_ATTEMPTS):
             try:
+                client = self._get_client()
                 completion: ChatCompletion | ParsedChatCompletion[BaseModel]
                 if response_model is not None:
-                    completion = await self._client.chat.completions.parse(
+                    completion = await client.chat.completions.parse(
                         model=prompt.model,
                         messages=messages,
                         response_format=response_model,
@@ -71,7 +85,7 @@ class OpenAIProvider:
                     parsed: BaseModel | None = message.parsed
                     text = message.content or ""
                 else:
-                    completion = await self._client.chat.completions.create(
+                    completion = await client.chat.completions.create(
                         model=prompt.model,
                         messages=messages,
                         **_optional_kwargs(prompt),
@@ -112,7 +126,7 @@ class OpenAIProvider:
             {"role": "system", "content": prompt.system},
             {"role": "user", "content": prompt.user},
         ]
-        response_stream = await self._client.chat.completions.create(
+        response_stream = await self._get_client().chat.completions.create(
             model=prompt.model,
             messages=messages,
             stream=True,
@@ -127,7 +141,7 @@ class OpenAIProvider:
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         try:
-            response = await self._client.embeddings.create(
+            response = await self._get_client().embeddings.create(
                 model=settings.embedding_model, input=texts
             )
         except OpenAIError as exc:

@@ -27,7 +27,16 @@ class GeminiProvider:
     missing/non-matching `.parsed` as a retryable failure rather than trusting raw JSON."""
 
     def __init__(self) -> None:
-        self._client = genai.Client(api_key=settings.gemini_api_key)
+        # Constructed lazily — see OpenAIProvider's `_get_client` docstring for why: the SDK
+        # raises `ValueError` immediately on a blank key, which would turn "AI not configured
+        # yet" into a hard crash at `GeminiProvider()` construction time instead of a clean
+        # `AIExtractionError` at actual call time.
+        self._client: genai.Client | None = None
+
+    def _get_client(self) -> genai.Client:
+        if self._client is None:
+            self._client = genai.Client(api_key=settings.gemini_api_key)
+        return self._client
 
     def _config(
         self, prompt: PromptSpec, *, response_model: type[BaseModel] | None
@@ -51,13 +60,17 @@ class GeminiProvider:
 
         for attempt in range(_MAX_ATTEMPTS):
             try:
-                response = await self._client.aio.models.generate_content(
+                response = await self._get_client().aio.models.generate_content(
                     model=prompt.model,
                     contents=contents,
                     config=self._config(prompt, response_model=response_model),
                 )
             except APIError as exc:
                 raise AIExtractionError(f"LLM call failed: {exc.message or exc}") from exc
+            except ValueError as exc:
+                # Raised by `_get_client()` when `settings.gemini_api_key` is blank — see its
+                # docstring.
+                raise AIExtractionError(f"LLM call failed: {exc}") from exc
 
             parsed: BaseModel | None = None
             if response_model is not None:
@@ -87,7 +100,7 @@ class GeminiProvider:
         raise AIExtractionError(last_error or "Structured output validation failed after retry.")
 
     async def stream(self, prompt: PromptSpec) -> AsyncIterator[str]:
-        response_stream = await self._client.aio.models.generate_content_stream(
+        response_stream = await self._get_client().aio.models.generate_content_stream(
             model=prompt.model,
             contents=prompt.user,
             config=self._config(prompt, response_model=None),
@@ -98,11 +111,13 @@ class GeminiProvider:
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         try:
-            response = await self._client.aio.models.embed_content(
+            response = await self._get_client().aio.models.embed_content(
                 model=settings.embedding_model,
                 contents=texts,
                 config=types.EmbedContentConfig(output_dimensionality=_EMBEDDING_DIMENSIONS),
             )
         except APIError as exc:
             raise AIExtractionError(f"Embedding call failed: {exc.message or exc}") from exc
+        except ValueError as exc:
+            raise AIExtractionError(f"Embedding call failed: {exc}") from exc
         return [list(item.values or []) for item in (response.embeddings or [])]
