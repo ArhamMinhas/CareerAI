@@ -5,7 +5,9 @@ from httpx import AsyncClient
 
 import app.api.v1.resumes as resumes_module
 import app.workers.resume_tasks as resume_tasks_module
+from app.ai.llm.base import LLMResult
 from app.core.db import AsyncSessionLocal
+from app.models.embedding import Embedding
 from app.models.resume import Resume, ResumeStatus
 from app.schemas.resume import ResumeExtraction
 from app.workers.resume_tasks import _process_resume
@@ -19,12 +21,40 @@ async def _noop_signed_url(path: str, *, expires_in: int = 3600) -> str:
     return f"https://example.com/signed/{path}"
 
 
+def _fake_llm_result() -> LLMResult:
+    return LLMResult(
+        text="{}",
+        parsed=None,
+        model="test-model",
+        prompt_tokens=10,
+        completion_tokens=5,
+        latency_ms=42,
+    )
+
+
+async def _fake_store_embedding(db, *, owner_type, owner_id, text):  # noqa: ANN001
+    embedding = Embedding(
+        owner_type=owner_type, owner_id=owner_id, embedding=[0.0] * 1536, model="test-model"
+    )
+    db.add(embedding)
+    await db.flush()
+    return embedding
+
+
 @pytest.fixture(autouse=True)
 def _stub_storage(monkeypatch: pytest.MonkeyPatch) -> None:
     """Storage tests don't hit real Supabase — CI has no SUPABASE_URL/SECRET_KEY configured
     (docs/CONTRIBUTING.md), and even locally these should stay fast/deterministic."""
     monkeypatch.setattr(resumes_module, "upload_object", _noop_upload)
     monkeypatch.setattr(resumes_module, "create_signed_url", _noop_signed_url)
+
+
+@pytest.fixture(autouse=True)
+def _stub_embeddings(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Same reasoning as `_stub_storage`: no real Redis content-hash cache lookups or LLM
+    provider `embed()` calls in tests — `_fake_store_embedding` still exercises the real
+    `embeddings` table insert, just with a stubbed-out vector instead of a real API call."""
+    monkeypatch.setattr(resume_tasks_module, "store_embedding", _fake_store_embedding)
 
 
 async def test_resumes_require_auth(client: AsyncClient) -> None:
@@ -133,8 +163,8 @@ async def test_full_processing_pipeline_scores_and_syncs_skills(
     def _fake_extract_text(content: bytes, file_type) -> str:  # noqa: ANN001
         return "Experience\nEducation\nSkills\nPython SQL"
 
-    async def _fake_extract_fields(raw_text: str) -> ResumeExtraction:
-        return fake_extraction
+    async def _fake_extract_fields(raw_text: str) -> tuple[ResumeExtraction, LLMResult]:
+        return fake_extraction, _fake_llm_result()
 
     monkeypatch.setattr(resume_tasks_module, "download_object", _fake_download)
     monkeypatch.setattr(resume_tasks_module, "extract_text", _fake_extract_text)
@@ -186,8 +216,8 @@ async def test_processing_survives_duplicate_skill_slug_collision(
     def _fake_extract_text(content: bytes, file_type) -> str:  # noqa: ANN001
         return "Experience\nEducation\nSkills\nMachine Learning Python"
 
-    async def _fake_extract_fields(raw_text: str) -> ResumeExtraction:
-        return fake_extraction
+    async def _fake_extract_fields(raw_text: str) -> tuple[ResumeExtraction, LLMResult]:
+        return fake_extraction, _fake_llm_result()
 
     monkeypatch.setattr(resume_tasks_module, "download_object", _fake_download)
     monkeypatch.setattr(resume_tasks_module, "extract_text", _fake_extract_text)

@@ -165,11 +165,58 @@ processing), but isn't backed by a persistent idempotency-key cache/store — a 
 a fresh key after a completed response could still trigger a second real analysis. Full
 idempotency-key infrastructure is a fast-follow, not blocking for this phase.
 
-## Phase 5 — AI Infrastructure ⬜
+## Phase 5 — AI Infrastructure ✅
 
-LLM provider abstraction, embeddings, pgvector wiring, prompt management, AI pipeline
-scaffolding, structured-output validation, `ai_conversations` logging — per
-[AI_ARCHITECTURE.md](./AI_ARCHITECTURE.md).
+LLM provider abstraction, embeddings, pgvector wiring, prompt management, structured-output
+validation, `ai_conversations` logging — per [AI_ARCHITECTURE.md](./AI_ARCHITECTURE.md). Also
+wired the dashboard's 3D skill constellation to real profile skill data, replacing the
+decorative placeholder from Phase 2.
+
+**Deliberate scope deviation from AI_ARCHITECTURE.md §2:** that doc describes a top-level `ai/`
+package with `apps/api/app/ai/` as a thin adapter, for cross-package importability from future
+notebooks/`ml/` code. Built entirely inside `apps/api/app/ai/` instead — no `ml/` package or
+notebooks exist yet to justify it, the only current consumers (the FastAPI API and the Celery
+worker) already share this exact codebase and Docker image, and a real top-level package would
+need Docker `COPY`/`PYTHONPATH` changes for zero present benefit. Same reasoning already applied
+to `packages/ui` staying a stub since Phase 2 — revisit when a second, genuinely separate
+consumer (e.g. a notebook or standalone ML job) actually exists.
+
+**Provider abstraction** (`app/ai/llm/`): `LLMProvider` protocol (`complete`/`stream`/`embed`)
+with `OpenAIProvider` and `GeminiProvider` implementations and a `router.py` that resolves
+`(provider, model)` per named task from `settings.llm_provider`/`llm_model_default`/
+`llm_model_reasoning` — switching providers or routing a task to a cheaper/stronger model is an
+env var change, not a code change. Both providers use their vendor's native structured-output
+mode (OpenAI `chat.completions.parse()`, Gemini `response_schema`) and re-validate against the
+given Pydantic model with one bounded retry (validation error fed back into the prompt) before
+raising a typed `AIExtractionError`, per §3. `app/ai/resume_extraction.py` — the Phase 4
+stopgap that called `openai` directly — is migrated onto this abstraction, retiring the
+exception AI_ARCHITECTURE.md §2 had flagged for it.
+
+**Prompt management** (`app/ai/prompts/`): versioned `.md` files (system instructions below a
+`---` metadata header) loaded by `(name, version)` via a small cached registry, starting with
+`resume_extraction/v1.md` (moved out of the Python module it used to live inline in).
+
+**Embeddings & pgvector** (`app/models/embedding.py`, `app/services/embeddings.py`): the
+polymorphic `embeddings` table from [DATABASE.md §2.2](./DATABASE.md#22-resume-intelligence)
+with a `vector(1536)` column and an HNSW/cosine index (pgvector extension itself already
+provisioned since Phase 1 via `infrastructure/docker/postgres-init/001-extensions.sql`, not an
+Alembic migration). `embed_text()` caches by content hash in Redis before calling the provider
+so re-embedding identical content (e.g. re-uploading an unchanged resume) never re-calls the
+API; a cache failure degrades to calling the provider directly rather than blocking the caller.
+The resume pipeline now embeds each resume's full text on every analysis.
+
+**`ai_conversations` logging** (`app/models/ai_conversation.py`,
+`app/services/ai_conversations.py`): every LLM call the resume pipeline makes is logged with
+model, token counts, and latency; `request_meta` holds only the prompt name/version, never full
+prompt/response text or raw PII, per §10's safe-logging policy. `feature` is plain text, not a
+DB enum — validated at the application layer (`AIFeature`) instead, since new AI features land
+every phase and a Postgres enum would need a migration for each one.
+
+**Verified locally end-to-end:** ruff/mypy/pytest clean (62 tests, including new coverage for
+both providers' retry/error-wrapping behavior, the router, the prompt registry, and
+conversation/embedding persistence); `alembic check` reports no drift; a real resume re-analysis
+through the rebuilt Docker stack produced a real score plus a real `ai_conversations` row and a
+real `embeddings` row.
 
 ## Phase 6 — Skill Gap Engine ⬜
 

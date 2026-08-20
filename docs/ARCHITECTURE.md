@@ -119,9 +119,14 @@ Rules that keep this from rotting into a ball of mud (spec §4, §52):
   scoring/ranking/recommendation logic is actually implemented (hybrid rule+ML+embedding, never
   a bare LLM call).
 - **Repositories** are the only layer that issues SQL/ORM queries.
-- **`ai/` and `ml/`** inside the API app are thin adapters around the top-level `ai/` and `ml/`
-  packages (which are framework-agnostic and independently testable/importable from notebooks
-  and the worker).
+- **`ai/` and `ml/`** inside the API app were originally planned as thin adapters around
+  top-level `ai/`/`ml/` packages, framework-agnostic and importable from notebooks. As of
+  Phase 5, `ai/` lives entirely inside `apps/api/app/ai/` instead — no top-level package: no
+  notebook or standalone `ml/` consumer exists yet to need one, the API and worker already
+  share this codebase/Docker image, and a real top-level package would need Docker
+  `COPY`/`PYTHONPATH` changes for no current benefit (see
+  [AI_ARCHITECTURE.md](./AI_ARCHITECTURE.md), [ROADMAP.md](./ROADMAP.md) Phase 5). Revisit if a
+  genuinely separate consumer shows up.
 
 ## 5. Request flow: resume upload → analysis (representative end-to-end trace)
 

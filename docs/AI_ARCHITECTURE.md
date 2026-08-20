@@ -1,8 +1,10 @@
 # CareerAI — AI Architecture
 
-Status: Phase 0 design. Implemented starting Phase 5 (AI infrastructure), consumed by
-Phases 6–12. Physically lives in the top-level `ai/` package plus the thin `apps/api/app/ai`
-adapter — see [ARCHITECTURE.md §4](./ARCHITECTURE.md#4-backend-layering-appsapi).
+Status: Phase 5 implemented this infrastructure; consumed by Phases 6–12 as they land. **Lives
+entirely in `apps/api/app/ai/`, not a separate top-level `ai/` package** — a deliberate,
+documented deviation from this doc's original §2/§4 plan (see
+[ROADMAP.md's Phase 5 entry](./ROADMAP.md) for the reasoning); ARCHITECTURE.md §4 is updated to
+match.
 
 ## 1. Core principle: LLMs reason, code decides
 
@@ -24,9 +26,9 @@ question generation, evaluation of free-text answers against a rubric, and RAG-g
 ## 2. Provider abstraction
 
 ```
-ai/
+apps/api/app/ai/
   llm/
-    base.py           # LLMProvider protocol: complete(), stream(), embed()
+    base.py           # LLMProvider protocol: complete(), stream(), embed(); PromptSpec, LLMResult, AIExtractionError
     openai_provider.py
     gemini_provider.py
     router.py          # picks provider/model per task from config, not hardcoded per call site
@@ -35,20 +37,18 @@ ai/
 ```python
 class LLMProvider(Protocol):
     async def complete(self, prompt: PromptSpec, *, response_model: type[BaseModel] | None = None) -> LLMResult: ...
-    async def stream(self, prompt: PromptSpec) -> AsyncIterator[str]: ...
+    def stream(self, prompt: PromptSpec) -> AsyncIterator[str]: ...
     async def embed(self, texts: list[str]) -> list[list[float]]: ...
 ```
 
-Services never import `openai` or `google.generativeai` directly — they depend on
-`LLMProvider` — **with one flagged, deliberate exception**: `apps/api/app/ai/resume_extraction.py`
-(Phase 4) calls `openai` directly, since Phase 4 needed real resume extraction working before
-this abstraction existed and Phase 5 (this doc's own phase) is what formally owns building it.
-That module's docstring says so explicitly; when Phase 5 lands, migrate it onto `LLMProvider`
-and remove the exception rather than letting it become precedent for a second one.
+Services never import `openai` or `google.genai` directly — they depend on `LLMProvider`.
+`apps/api/app/ai/resume_extraction.py`, which called `openai` directly as a Phase 4 stopgap
+ahead of this abstraction existing, is migrated onto it as of Phase 5; that exception no longer
+exists.
 
-Switching providers, or routing cheap tasks to a cheaper model and complex
-reasoning to a stronger one, is a config change (`ai/llm/router.py` + environment variables),
-not a code change across the app (spec §27, §39).
+Switching providers, or routing cheap tasks to a cheaper model and complex reasoning to a
+stronger one, is a config change (`llm_provider`/`llm_model_default`/`llm_model_reasoning` env
+vars read by `app/ai/llm/router.py`), not a code change across the app (spec §27, §39).
 
 **Model routing example:** skill normalization / short classification → small/cheap model;
 resume structured extraction, career explanation, interview evaluation → stronger model;
@@ -66,27 +66,33 @@ prompt, then a typed `AIExtractionError` — never a silently malformed object f
 ## 4. Prompt management
 
 ```
-ai/prompts/
+apps/api/app/ai/prompts/
   resume_extraction/v1.md
-  resume_extraction/v2.md
-  career_explanation/v1.md
-  interview_question_gen/v1.md
-  interview_evaluation/v1.md
-  rag_answer/v1.md
+  resume_extraction/v2.md      # future
+  career_explanation/v1.md     # future
+  interview_question_gen/v1.md # future
+  interview_evaluation/v1.md   # future
+  rag_answer/v1.md             # future
 ```
 
 Prompts are versioned files, not inline strings (spec §52). Each prompt file has: system
-instructions, `{variables}`, and an expected output schema reference. A prompt registry loads by
-`(name, version)`; `ai_conversations.request_meta` records which prompt version produced a given
-result, so a prompt regression is traceable to a specific commit.
+instructions above a `---` separator's worth of human-readable metadata (output schema,
+variables), and the actual system text below it. `app/ai/prompts/registry.py`'s `load_prompt(name,
+version)` loads and caches by `(name, version)`; `ai_conversations.request_meta` records which
+prompt version produced a given result, so a prompt regression is traceable to a specific file.
 
 ## 5. Embeddings & vector search
 
-- Model: `text-embedding-3-small` (1536-dim) by default, provider-abstracted like completions.
-- Generated for: resumes (full + per-section), jobs, skills, learning resources, interview
-  questions, and RAG knowledge-base chunks — stored per [DATABASE.md §2](./DATABASE.md#2-entity-groups-erds).
-- **Embedding cache:** content-hash → embedding, in Redis + a `embeddings` fallback row, so
-  re-uploading an unchanged resume or re-indexing an unchanged job never re-embeds (§7).
+- Model: `text-embedding-3-small` (1536-dim) by default, provider-abstracted like completions —
+  Gemini's embedding model is truncated to the same 1536 dims via its own `output_dimensionality`
+  support so both providers write into the same fixed-width `vector(1536)` column.
+- Generated for: resumes (full text) as of Phase 5. Per-section resume chunks, jobs, skills,
+  learning resources, interview questions, and RAG knowledge-base chunks land as those features
+  do (Phases 6+) — stored the same way, per [DATABASE.md §2](./DATABASE.md#2-entity-groups-erds).
+- **Embedding cache:** content-hash → embedding in Redis (`app/services/embeddings.py`), so
+  re-uploading an unchanged resume or re-indexing an unchanged job never re-embeds (§7); a cache
+  miss/failure calls the provider directly rather than blocking. The `embeddings` table itself
+  is the durable copy pgvector search reads from, not a second dedup layer.
 - Semantic search combines cosine similarity (pgvector `<=>`) with metadata filters
   (location, seniority, remote) applied in the same SQL query — not a two-pass
   filter-then-re-rank unless the candidate set is large enough to need it.

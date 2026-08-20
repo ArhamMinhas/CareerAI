@@ -60,7 +60,16 @@ const VARIANTS = {
  * regardless of `reduceMotion`'s value, avoiding the hydration mismatch this bug used to cause
  * back when `reduceMotion` was part of this condition too.
  */
-export function SkillNetwork({ variant = "hero" }: { variant?: keyof typeof VARIANTS }) {
+export function SkillNetwork({
+  variant = "hero",
+  skills,
+}: {
+  variant?: keyof typeof VARIANTS;
+  /** Real skill names (e.g. the dashboard's own profile skills) — when provided, every node
+   * maps 1:1 to a real skill instead of the decorative demo list, and node count follows the
+   * real count rather than the variant's fixed default. */
+  skills?: string[];
+}) {
   const reduceMotion = useReducedMotion();
   const canRender3D = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
@@ -68,5 +77,7 @@ export function SkillNetwork({ variant = "hero" }: { variant?: keyof typeof VARI
     return <SkillNetworkFallback />;
   }
 
-  return <SkillNetworkScene {...VARIANTS[variant]} reduceMotion={Boolean(reduceMotion)} />;
+  return (
+    <SkillNetworkScene {...VARIANTS[variant]} reduceMotion={Boolean(reduceMotion)} labels={skills} />
+  );
 }

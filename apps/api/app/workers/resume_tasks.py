@@ -11,6 +11,8 @@ from app.models.profile import Profile
 from app.models.resume import Resume, ResumeStatus, ResumeVersion
 from app.models.skill import SkillSource, UserSkill
 from app.schemas.resume import ResumeExtraction
+from app.services.ai_conversations import AIFeature, log_conversation
+from app.services.embeddings import store_embedding
 from app.services.resume_parsing import (
     TextExtractionError,
     UnsupportedFileError,
@@ -20,6 +22,10 @@ from app.services.resume_parsing import (
 from app.services.resume_scoring import compute_overall_score, compute_score_breakdown
 from app.services.skill_taxonomy import get_or_create_skill
 from app.workers.celery_app import celery_app
+
+# Conservative char cap for the embedding call — well under every embedding model's token
+# limit (e.g. OpenAI's ~8191 tokens) without needing a tokenizer dependency just for this.
+_EMBEDDING_MAX_CHARS = 8_000
 
 
 @celery_app.task(name="resumes.process")
@@ -53,7 +59,18 @@ async def _process_resume(resume_id: uuid.UUID) -> None:
             content = await download_object(resume.file_url)
             raw_text = extract_text(content, resume.file_type)
             sections = detect_sections(raw_text)
-            extraction = await extract_resume_fields(raw_text)
+            extraction, llm_result = await extract_resume_fields(raw_text)
+            await log_conversation(
+                db,
+                user_id=resume.user_id,
+                feature=AIFeature.RESUME_ANALYSIS,
+                result=llm_result,
+                prompt_name="resume_extraction",
+                prompt_version="v1",
+            )
+            await store_embedding(
+                db, owner_type="resume", owner_id=resume.id, text=raw_text[:_EMBEDDING_MAX_CHARS]
+            )
             breakdown = compute_score_breakdown(extraction, raw_text, sections)
             overall = compute_overall_score(breakdown)
 

@@ -58,7 +58,7 @@ type NodeDatum = {
 
 type HoverInfo = { label: string; x: number; y: number };
 
-function generateNodes(count: number, radius: number, seed: number): NodeDatum[] {
+function generateNodes(count: number, radius: number, seed: number, labels?: string[]): NodeDatum[] {
   const rand = seededRandom(seed);
   const nodes: NodeDatum[] = [];
   for (let i = 0; i < count; i++) {
@@ -76,7 +76,10 @@ function generateNodes(count: number, radius: number, seed: number): NodeDatum[]
       speed: 0.4 + rand() * 0.5,
       amplitude: 0.06 + rand() * 0.08,
       isHub: i % 4 === 0,
-      label: SKILLS[i % SKILLS.length],
+      // Real skill labels (e.g. the dashboard's skill constellation, backed by the user's
+      // actual profile skills) take priority over the decorative demo list — passing `labels`
+      // means every node maps 1:1 to a real skill, never a repeat.
+      label: labels ? labels[i] : SKILLS[i % SKILLS.length],
     });
   }
   return nodes;
@@ -264,14 +267,19 @@ function NetworkGroup({
   radius,
   reduceMotion,
   onHover,
+  labels,
   ...props
 }: ThreeElements["group"] & {
   nodeCount: number;
   radius: number;
   reduceMotion: boolean;
   onHover: (info: HoverInfo | null) => void;
+  labels?: string[];
 }) {
-  const nodes = useMemo(() => generateNodes(nodeCount, radius, 42), [nodeCount, radius]);
+  const nodes = useMemo(
+    () => generateNodes(nodeCount, radius, 42, labels),
+    [nodeCount, radius, labels]
+  );
   const edges = useMemo(() => generateEdges(nodes), [nodes]);
 
   return (
@@ -288,14 +296,19 @@ export function SkillNetworkScene({
   cameraDistance = 7,
   interactive = true,
   reduceMotion = false,
+  labels,
 }: {
   nodeCount?: number;
   radius?: number;
   cameraDistance?: number;
   interactive?: boolean;
   reduceMotion?: boolean;
+  labels?: string[];
 }) {
   const [hover, setHover] = useState<HoverInfo | null>(null);
+  // Real data always wins on node count too — a user with 6 real skills gets a 6-node
+  // network, not 14 nodes where 8 of them are decorative filler.
+  const effectiveCount = labels && labels.length > 0 ? labels.length : nodeCount;
 
   return (
     <div className="relative size-full">
@@ -310,10 +323,11 @@ export function SkillNetworkScene({
         onPointerMissed={() => setHover(null)}
       >
         <NetworkGroup
-          nodeCount={nodeCount}
+          nodeCount={effectiveCount}
           radius={radius}
           reduceMotion={reduceMotion}
           onHover={setHover}
+          labels={labels}
         />
         <AmbientParticles radius={radius} reduceMotion={reduceMotion} />
         {interactive ? (

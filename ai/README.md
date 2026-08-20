@@ -1,14 +1,13 @@
 # ai/
 
-Standalone AI service layer, imported by `apps/api/app/ai`. Kept outside the API app so AI
-logic is never scattered across route handlers and can be evaluated/tested independently.
+Still just this README as of Phase 5 — a deliberate deviation from the original plan, not an
+oversight. The provider abstraction, prompt registry, embeddings, and conversation logging all
+live in `apps/api/app/ai/` and `apps/api/app/services/` instead: no notebook or standalone `ml/`
+consumer exists yet to need a framework-agnostic top-level package, the API and worker already
+share that codebase/Docker image, and a real top-level package would need Docker
+`COPY`/`PYTHONPATH` changes for no current benefit. Same reasoning as `packages/ui` staying a
+stub since Phase 2.
 
-```
-pipelines/    multi-step AI pipelines (resume extraction, roadmap generation, interview eval)
-prompts/      versioned prompt templates (never hardcoded inline in application code)
-agents/       controlled agent workflows (Resume Analyst, Career Advisor, Interview Agent, ...)
-embeddings/   embedding generation + caching utilities
-evaluation/   LLM evaluation harness + test case fixtures
-```
-
-See [docs/AI_ARCHITECTURE.md](../docs/AI_ARCHITECTURE.md). Built starting Phase 5.
+See [docs/AI_ARCHITECTURE.md](../docs/AI_ARCHITECTURE.md) and
+[docs/ROADMAP.md](../docs/ROADMAP.md)'s Phase 5 entry. Revisit if a genuinely separate consumer
+(e.g. a notebook or standalone ML job under `ml/`) shows up.

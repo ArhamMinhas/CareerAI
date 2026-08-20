@@ -1,7 +1,7 @@
 import { Target, Briefcase, MessagesSquare } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ButtonLink } from "@/components/ui/button";
-import { SkillNetwork } from "@/components/three/skill-network";
+import { SkillConstellation } from "@/components/dashboard/skill-constellation";
 import { ResumeScoreCard } from "@/components/resume/resume-score-card";
 import { cardHover, cn } from "@/lib/utils";
 
@@ -41,12 +41,13 @@ export default function DashboardPage() {
           )}
         >
           <div className="h-56 w-full">
-            <SkillNetwork variant="compact" />
+            <SkillConstellation />
           </div>
           <div className="border-t border-border px-5 py-4">
             <h2 className="text-sm font-medium text-foreground">Your skill constellation</h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              Drag to explore. Populates with your real skills once a resume is analyzed.
+              Drag to explore. Reflects your real skills — added manually or from an analyzed
+              resume.
             </p>
           </div>
         </div>
