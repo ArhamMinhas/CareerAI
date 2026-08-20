@@ -43,6 +43,12 @@ async def _process_resume(resume_id: uuid.UUID) -> None:
         resume.status = ResumeStatus.PROCESSING
         await db.commit()
 
+        # Everything through the final commit is one try block — a resume must never be left
+        # stuck in "processing" forever no matter *where* it fails, extraction or persistence.
+        # (This used to end after `compute_overall_score`, leaving the skill-sync step
+        # unprotected — a duplicate-skill collision there raised uncaught and left real
+        # resumes stuck at "processing" indefinitely, since `status=PROCESSING` had already
+        # been committed separately above and nothing after it ever committed again.)
         try:
             content = await download_object(resume.file_url)
             raw_text = extract_text(content, resume.file_type)
@@ -50,50 +56,53 @@ async def _process_resume(resume_id: uuid.UUID) -> None:
             extraction = await extract_resume_fields(raw_text)
             breakdown = compute_score_breakdown(extraction, raw_text, sections)
             overall = compute_overall_score(breakdown)
+
+            structured = extraction.model_dump(mode="json")
+            breakdown_data = breakdown.model_dump(mode="json")
+
+            resume.structured_data = structured
+            resume.score_breakdown = breakdown_data
+            resume.overall_score = overall
+            resume.status = ResumeStatus.COMPLETED
+            resume.failure_reason = None
+
+            existing_versions = await db.execute(
+                select(ResumeVersion).where(ResumeVersion.resume_id == resume.id)
+            )
+            version_number = len(existing_versions.scalars().all()) + 1
+            db.add(
+                ResumeVersion(
+                    resume_id=resume.id,
+                    version_number=version_number,
+                    structured_data=structured,
+                    overall_score=overall,
+                    score_breakdown=breakdown_data,
+                )
+            )
+
+            await _sync_skills_from_resume(db, resume, extraction)
+            await db.commit()
         except (
             StorageError,
             UnsupportedFileError,
             TextExtractionError,
             ResumeExtractionError,
         ) as exc:
+            # A failed flush/commit above leaves the session unusable until rolled back —
+            # required before `resume` (still attached to this session) can be touched again.
+            await db.rollback()
             resume.status = ResumeStatus.FAILED
             resume.failure_reason = str(exc)[:1024]
             await db.commit()
-            return
         except Exception:
             # Never leave a resume stuck in "processing" on an unexpected error — record a
             # generic failure (no internals leaked, same policy as app/core/errors.py) and
             # re-raise so Celery still logs/retries per its own policy.
+            await db.rollback()
             resume.status = ResumeStatus.FAILED
             resume.failure_reason = "An unexpected error occurred while processing this resume."
             await db.commit()
             raise
-
-        structured = extraction.model_dump(mode="json")
-        breakdown_data = breakdown.model_dump(mode="json")
-
-        resume.structured_data = structured
-        resume.score_breakdown = breakdown_data
-        resume.overall_score = overall
-        resume.status = ResumeStatus.COMPLETED
-        resume.failure_reason = None
-
-        existing_versions = await db.execute(
-            select(ResumeVersion).where(ResumeVersion.resume_id == resume.id)
-        )
-        version_number = len(existing_versions.scalars().all()) + 1
-        db.add(
-            ResumeVersion(
-                resume_id=resume.id,
-                version_number=version_number,
-                structured_data=structured,
-                overall_score=overall,
-                score_breakdown=breakdown_data,
-            )
-        )
-
-        await _sync_skills_from_resume(db, resume, extraction)
-        await db.commit()
 
 
 async def _sync_skills_from_resume(
@@ -114,13 +123,22 @@ async def _sync_skills_from_resume(
         await db.flush()
 
     existing = await db.execute(select(UserSkill).where(UserSkill.profile_id == profile.id))
-    existing_names = {row.skill.name.lower() for row in existing.scalars().all()}
+    # Keyed by resolved skill id, not the raw extracted string — `get_or_create_skill`
+    # dedupes by *slug*, so two different-looking extracted strings ("Node.js", "NodeJS")
+    # can resolve to the *same* skill row even though their lowercased text differs. Tracking
+    # by raw string let two such strings both pass the "not seen yet" check and both try to
+    # insert a UserSkill for the same (profile_id, skill_id) pair — a real duplicate-key
+    # crash observed in production, left the resume stuck in "processing" forever (see
+    # `_process_resume`'s try/except comment).
+    claimed_skill_ids = {row.skill_id for row in existing.scalars().all()}
 
     for skill_name in extraction.skills:
         clean = skill_name.strip()
-        if not clean or clean.lower() in existing_names:
+        if not clean:
             continue
         skill = await get_or_create_skill(db, clean)
+        if skill.id in claimed_skill_ids:
+            continue
         db.add(
             UserSkill(
                 profile_id=profile.id,
@@ -129,4 +147,4 @@ async def _sync_skills_from_resume(
                 source=SkillSource.RESUME,
             )
         )
-        existing_names.add(clean.lower())
+        claimed_skill_ids.add(skill.id)

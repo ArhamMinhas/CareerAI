@@ -162,3 +162,52 @@ async def test_full_processing_pipeline_scores_and_syncs_skills(
         skill_names = {s["name"] for s in skills_response.json()["data"]}
         assert {"Python", "SQL"} <= skill_names
         assert all(s["source"] == "resume" for s in skills_response.json()["data"])
+
+
+async def test_processing_survives_duplicate_skill_slug_collision(
+    authed_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression test for a real production incident: two differently-worded extracted
+    skills that resolve to the *same* taxonomy slug ("Machine Learning" / "machine-learning"
+    both slugify to "machine-learning") used to crash the skill-sync step with a duplicate-key
+    error that was outside the function's try/except — leaving the resume stuck at
+    status=processing forever instead of completing or failing."""
+    fake_extraction = ResumeExtraction(
+        full_name="Test User",
+        skills=["Machine Learning", "machine-learning", "Python"],
+        experience=[],
+        education=[],
+        projects=[],
+    )
+
+    async def _fake_download(path: str) -> bytes:
+        return b"dummy bytes"
+
+    def _fake_extract_text(content: bytes, file_type) -> str:  # noqa: ANN001
+        return "Experience\nEducation\nSkills\nMachine Learning Python"
+
+    async def _fake_extract_fields(raw_text: str) -> ResumeExtraction:
+        return fake_extraction
+
+    monkeypatch.setattr(resume_tasks_module, "download_object", _fake_download)
+    monkeypatch.setattr(resume_tasks_module, "extract_text", _fake_extract_text)
+    monkeypatch.setattr(resume_tasks_module, "extract_resume_fields", _fake_extract_fields)
+
+    upload = await authed_client.post(
+        "/api/v1/resumes/upload",
+        files={"file": ("resume.pdf", b"%PDF-1.4 fake but non-empty content", "application/pdf")},
+    )
+    resume_id = uuid.UUID(upload.json()["data"]["id"])
+
+    await _process_resume(resume_id)
+
+    async with AsyncSessionLocal() as db:
+        resume = await db.get(Resume, resume_id)
+        assert resume is not None
+        assert resume.status == ResumeStatus.COMPLETED, resume.failure_reason
+
+    skills_response = await authed_client.get("/api/v1/profile/skills")
+    skill_names = [s["name"] for s in skills_response.json()["data"]]
+    # Exactly one of the two colliding spellings won, not both, not a crash.
+    assert sum(1 for n in skill_names if n.lower().replace(" ", "-") == "machine-learning") == 1
+    assert "Python" in skill_names
