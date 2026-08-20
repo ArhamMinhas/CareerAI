@@ -3,7 +3,7 @@ import { Container } from "@/components/ui/container";
 import { Section } from "@/components/ui/section";
 import { ButtonLink } from "@/components/ui/button";
 import { Reveal } from "@/components/motion/reveal";
-import { cn } from "@/lib/utils";
+import { cardHoverMotion, cn } from "@/lib/utils";
 
 const tiers = [
   {
@@ -54,8 +54,10 @@ export function Pricing() {
           {tiers.map((tier, i) => (
             <Reveal
               key={tier.name}
+              hoverLift
               delay={i * 0.08}
               className={cn(
+                cardHoverMotion,
                 "flex flex-col rounded-xl border p-8",
                 tier.highlighted
                   ? "border-primary bg-surface shadow-lg"

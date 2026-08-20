@@ -2,6 +2,7 @@ import Image from "next/image";
 import { Container } from "@/components/ui/container";
 import { Section } from "@/components/ui/section";
 import { Reveal } from "@/components/motion/reveal";
+import { cardHover, cn } from "@/lib/utils";
 
 const quotes = [
   {
@@ -37,7 +38,12 @@ export function Testimonials() {
         <div className="mt-12 grid grid-cols-1 gap-6 md:grid-cols-3">
           {quotes.map((quote, i) => (
             <Reveal key={quote.name} delay={i * 0.08}>
-              <blockquote className="flex h-full flex-col justify-between rounded-xl border border-border bg-surface p-6">
+              <blockquote
+                className={cn(
+                  cardHover,
+                  "flex h-full flex-col justify-between rounded-xl border border-border bg-surface p-6"
+                )}
+              >
                 <p className="text-sm leading-relaxed text-foreground">
                   &ldquo;{quote.body}&rdquo;
                 </p>

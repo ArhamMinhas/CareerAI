@@ -29,9 +29,10 @@ export function Navbar() {
             <a
               key={link.href}
               href={link.href}
-              className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+              className="group relative text-sm text-muted-foreground transition-colors duration-200 hover:text-foreground"
             >
               {link.label}
+              <span className="absolute -bottom-1 left-0 h-px w-0 bg-primary transition-all duration-200 ease-out group-hover:w-full" />
             </a>
           ))}
         </nav>
@@ -49,7 +50,7 @@ export function Navbar() {
             type="button"
             aria-label={open ? "Close menu" : "Open menu"}
             onClick={() => setOpen((v) => !v)}
-            className="flex size-9 items-center justify-center rounded-lg text-foreground hover:bg-surface"
+            className="flex size-9 items-center justify-center rounded-lg text-foreground transition-colors duration-200 hover:bg-surface"
           >
             {open ? (
               <X className="size-5" strokeWidth={1.75} />
@@ -68,7 +69,7 @@ export function Navbar() {
                 key={link.href}
                 href={link.href}
                 onClick={() => setOpen(false)}
-                className="rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:bg-surface hover:text-foreground"
+                className="rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition-colors duration-200 hover:bg-surface hover:text-foreground"
               >
                 {link.label}
               </a>

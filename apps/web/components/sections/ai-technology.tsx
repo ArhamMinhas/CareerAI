@@ -29,8 +29,8 @@ export function AiTechnology() {
           <div className="flex min-w-max items-center gap-3">
             {stages.map((stage, i) => (
               <div key={stage.label} className="flex items-center gap-3">
-                <div className="flex flex-col items-center gap-3 rounded-xl border border-border bg-surface px-6 py-5">
-                  <stage.icon className="size-5 text-primary" strokeWidth={1.5} />
+                <div className="group flex flex-col items-center gap-3 rounded-xl border border-border bg-surface px-6 py-5 transition-all duration-200 ease-out hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5">
+                  <stage.icon className="size-5 text-primary transition-transform duration-200 group-hover:scale-110" strokeWidth={1.5} />
                   <span className="text-xs font-medium text-foreground">{stage.label}</span>
                 </div>
                 {i < stages.length - 1 ? (

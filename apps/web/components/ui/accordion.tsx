@@ -20,7 +20,7 @@ export const AccordionTrigger = ({
   <AccordionPrimitive.Header>
     <AccordionPrimitive.Trigger
       className={cn(
-        "group flex w-full items-center justify-between py-5 text-left text-sm font-medium text-foreground",
+        "group flex w-full items-center justify-between py-5 text-left text-sm font-medium text-foreground transition-colors duration-200 hover:text-primary",
         className
       )}
       {...props}

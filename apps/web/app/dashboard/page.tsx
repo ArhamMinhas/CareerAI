@@ -2,6 +2,7 @@ import { FileText, Target, Briefcase, MessagesSquare } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ButtonLink } from "@/components/ui/button";
 import { SkillNetwork } from "@/components/three/skill-network";
+import { cardHover, cn } from "@/lib/utils";
 
 const metrics = [
   {
@@ -38,7 +39,12 @@ export default function DashboardPage() {
       </div>
 
       <div className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="overflow-hidden rounded-xl border border-border bg-surface lg:col-span-1">
+        <div
+          className={cn(
+            cardHover,
+            "overflow-hidden rounded-xl border border-border bg-surface lg:col-span-1"
+          )}
+        >
           <div className="h-56 w-full">
             <SkillNetwork variant="compact" />
           </div>
@@ -57,7 +63,12 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="mt-6 flex flex-col items-start gap-3 rounded-xl border border-border bg-surface p-6">
+      <div
+        className={cn(
+          cardHover,
+          "mt-6 flex flex-col items-start gap-3 rounded-xl border border-border bg-surface p-6"
+        )}
+      >
         <h2 className="text-sm font-medium text-foreground">Get started</h2>
         <p className="max-w-[52ch] text-sm text-muted-foreground">
           Resume upload and profile setup are the next things to build. For now, this

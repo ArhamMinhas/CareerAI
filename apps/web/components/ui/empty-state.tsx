@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cardHover, cn } from "@/lib/utils";
 
 export function EmptyState({
   icon: Icon,
@@ -15,6 +15,7 @@ export function EmptyState({
   return (
     <div
       className={cn(
+        cardHover,
         "flex flex-col items-center justify-center rounded-xl border border-dashed border-border-strong px-6 py-10 text-center",
         className
       )}

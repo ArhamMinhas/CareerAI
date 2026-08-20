@@ -2,7 +2,7 @@ import { FileText, Target, Briefcase, MessagesSquare, Map } from "lucide-react";
 import { Container } from "@/components/ui/container";
 import { Section } from "@/components/ui/section";
 import { Reveal } from "@/components/motion/reveal";
-import { cn } from "@/lib/utils";
+import { cardHoverMotion, cn } from "@/lib/utils";
 
 function ResumeScoreVisual() {
   return (
@@ -132,27 +132,30 @@ export function ProductTour() {
           </h2>
         </Reveal>
 
-        <div className="mt-12 grid grid-cols-1 gap-4 md:auto-rows-[220px] md:grid-cols-4">
+        <div className="mt-12 grid grid-cols-1 gap-4 md:auto-rows-55 md:grid-cols-4">
           <Reveal
-            className="rounded-xl border border-border bg-surface p-6 md:col-span-2 md:row-span-2"
+            hoverLift
+            className={cn(cardHoverMotion, "rounded-xl border border-border bg-surface p-6 md:col-span-2 md:row-span-2")}
           >
             <ResumeScoreVisual />
           </Reveal>
-          <Reveal delay={0.05} className="rounded-xl border border-border bg-surface p-6 md:col-start-3">
+          <Reveal hoverLift delay={0.05} className={cn(cardHoverMotion, "rounded-xl border border-border bg-surface p-6 md:col-start-3")}>
             <SkillGapVisual />
           </Reveal>
-          <Reveal delay={0.1} className="rounded-xl border border-border bg-surface p-6 md:col-start-4">
+          <Reveal hoverLift delay={0.1} className={cn(cardHoverMotion, "rounded-xl border border-border bg-surface p-6 md:col-start-4")}>
             <JobMatchVisual />
           </Reveal>
           <Reveal
+            hoverLift
             delay={0.15}
-            className="rounded-xl border border-border bg-surface p-6 md:col-start-3 md:row-start-2"
+            className={cn(cardHoverMotion, "rounded-xl border border-border bg-surface p-6 md:col-start-3 md:row-start-2")}
           >
             <InterviewVisual />
           </Reveal>
           <Reveal
+            hoverLift
             delay={0.2}
-            className="rounded-xl border border-border bg-surface p-6 md:col-start-4 md:row-start-2"
+            className={cn(cardHoverMotion, "rounded-xl border border-border bg-surface p-6 md:col-start-4 md:row-start-2")}
           >
             <RoadmapVisual />
           </Reveal>

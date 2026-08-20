@@ -9,6 +9,36 @@ const VIOLET = new THREE.Color("#8b5cf6");
 const VIOLET_BRIGHT = new THREE.Color("#c4b5fd");
 const NEUTRAL = "#a1a1aa";
 
+// Real skills the product actually reasons about, not decorative dots — hovering a node
+// tells you what it represents (docs/UI_ARCHITECTURE.md §6 calls for "skill constellation",
+// not an abstract network).
+const SKILLS = [
+  "Python",
+  "SQL",
+  "React",
+  "TypeScript",
+  "Machine Learning",
+  "Deep Learning",
+  "PyTorch",
+  "LLMs",
+  "RAG",
+  "Vector Databases",
+  "Docker",
+  "Kubernetes",
+  "AWS",
+  "FastAPI",
+  "Next.js",
+  "Node.js",
+  "NLP",
+  "Data Analysis",
+  "System Design",
+  "Git",
+  "GraphQL",
+  "PostgreSQL",
+  "CI/CD",
+  "Testing",
+];
+
 function seededRandom(seed: number) {
   let value = seed;
   return () => {
@@ -23,7 +53,10 @@ type NodeDatum = {
   speed: number;
   amplitude: number;
   isHub: boolean;
+  label: string;
 };
+
+type HoverInfo = { label: string; x: number; y: number };
 
 function generateNodes(count: number, radius: number, seed: number): NodeDatum[] {
   const rand = seededRandom(seed);
@@ -43,6 +76,7 @@ function generateNodes(count: number, radius: number, seed: number): NodeDatum[]
       speed: 0.4 + rand() * 0.5,
       amplitude: 0.06 + rand() * 0.08,
       isHub: i % 4 === 0,
+      label: SKILLS[i % SKILLS.length],
     });
   }
   return nodes;
@@ -97,7 +131,15 @@ function AmbientParticles({ radius, reduceMotion }: { radius: number; reduceMoti
   );
 }
 
-function Nodes({ nodes, reduceMotion }: { nodes: NodeDatum[]; reduceMotion: boolean }) {
+function Nodes({
+  nodes,
+  reduceMotion,
+  onHover,
+}: {
+  nodes: NodeDatum[];
+  reduceMotion: boolean;
+  onHover: (info: HoverInfo | null) => void;
+}) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const color = useMemo(() => new THREE.Color(), []);
@@ -121,7 +163,7 @@ function Nodes({ nodes, reduceMotion }: { nodes: NodeDatum[]; reduceMotion: bool
       dummy.position.copy(node.base).addScaledVector(node.base.clone().normalize(), bob);
 
       let scale = node.isHub ? 1.6 : 1;
-      if (hovered === i) scale *= 1.6;
+      if (hovered === i) scale *= 1.7;
 
       const pulseStart = pulsesRef.current.get(i);
       if (pulseStart !== undefined) {
@@ -148,7 +190,15 @@ function Nodes({ nodes, reduceMotion }: { nodes: NodeDatum[]; reduceMotion: bool
 
   const handlePointerMove = (event: ThreeEvent<PointerEvent>) => {
     event.stopPropagation();
-    if (event.instanceId !== undefined) setHovered(event.instanceId);
+    if (event.instanceId === undefined) return;
+    setHovered(event.instanceId);
+    const native = event.nativeEvent;
+    onHover({ label: nodes[event.instanceId].label, x: native.offsetX, y: native.offsetY });
+  };
+
+  const handlePointerOut = () => {
+    setHovered(null);
+    onHover(null);
   };
 
   return (
@@ -156,7 +206,7 @@ function Nodes({ nodes, reduceMotion }: { nodes: NodeDatum[]; reduceMotion: bool
       ref={meshRef}
       args={[undefined, undefined, nodes.length]}
       onPointerMove={handlePointerMove}
-      onPointerOut={() => setHovered(null)}
+      onPointerOut={handlePointerOut}
       onClick={(event: ThreeEvent<MouseEvent>) => {
         event.stopPropagation();
         if (event.instanceId !== undefined) {
@@ -213,14 +263,20 @@ function NetworkGroup({
   nodeCount,
   radius,
   reduceMotion,
+  onHover,
   ...props
-}: ThreeElements["group"] & { nodeCount: number; radius: number; reduceMotion: boolean }) {
+}: ThreeElements["group"] & {
+  nodeCount: number;
+  radius: number;
+  reduceMotion: boolean;
+  onHover: (info: HoverInfo | null) => void;
+}) {
   const nodes = useMemo(() => generateNodes(nodeCount, radius, 42), [nodeCount, radius]);
   const edges = useMemo(() => generateEdges(nodes), [nodes]);
 
   return (
     <group {...props}>
-      <Nodes nodes={nodes} reduceMotion={reduceMotion} />
+      <Nodes nodes={nodes} reduceMotion={reduceMotion} onHover={onHover} />
       <Edges nodes={nodes} edges={edges} reduceMotion={reduceMotion} />
     </group>
   );
@@ -239,28 +295,50 @@ export function SkillNetworkScene({
   interactive?: boolean;
   reduceMotion?: boolean;
 }) {
+  const [hover, setHover] = useState<HoverInfo | null>(null);
+
   return (
-    <Canvas
-      camera={{ position: [0, 0, cameraDistance], fov: 45 }}
-      dpr={[1, 1.5]}
-      gl={{ antialias: true, alpha: true }}
-      style={{ touchAction: interactive ? "none" : "auto", cursor: interactive ? "grab" : "default" }}
-    >
-      <NetworkGroup nodeCount={nodeCount} radius={radius} reduceMotion={reduceMotion} />
-      <AmbientParticles radius={radius} reduceMotion={reduceMotion} />
-      {interactive ? (
-        <OrbitControls
-          enableZoom={false}
-          enablePan={false}
-          enableDamping
-          dampingFactor={0.08}
-          rotateSpeed={0.5}
-          autoRotate={!reduceMotion}
-          autoRotateSpeed={0.4}
-          minPolarAngle={Math.PI / 2 - 0.6}
-          maxPolarAngle={Math.PI / 2 + 0.6}
+    <div className="relative size-full">
+      <Canvas
+        camera={{ position: [0, 0, cameraDistance], fov: 45 }}
+        dpr={[1, 1.5]}
+        gl={{ antialias: true, alpha: true }}
+        style={{
+          touchAction: interactive ? "none" : "auto",
+          cursor: interactive ? "grab" : "default",
+        }}
+        onPointerMissed={() => setHover(null)}
+      >
+        <NetworkGroup
+          nodeCount={nodeCount}
+          radius={radius}
+          reduceMotion={reduceMotion}
+          onHover={setHover}
         />
+        <AmbientParticles radius={radius} reduceMotion={reduceMotion} />
+        {interactive ? (
+          <OrbitControls
+            enableZoom={false}
+            enablePan={false}
+            enableDamping
+            dampingFactor={0.12}
+            rotateSpeed={1.4}
+            autoRotate={!reduceMotion}
+            autoRotateSpeed={0.4}
+            minPolarAngle={Math.PI / 2 - 0.6}
+            maxPolarAngle={Math.PI / 2 + 0.6}
+          />
+        ) : null}
+      </Canvas>
+
+      {hover ? (
+        <div
+          className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-[calc(100%+10px)] rounded-md border border-border-strong bg-background px-2.5 py-1 text-xs font-medium text-foreground shadow-md"
+          style={{ left: hover.x, top: hover.y }}
+        >
+          {hover.label}
+        </div>
       ) : null}
-    </Canvas>
+    </div>
   );
 }

@@ -33,8 +33,11 @@ export function HowItWorks() {
 
         <div className="mt-16 grid grid-cols-1 gap-10 md:grid-cols-3 md:gap-8">
           {steps.map((step, i) => (
-            <Reveal key={step.title} delay={i * 0.08}>
-              <step.icon className="size-6 text-primary" strokeWidth={1.5} />
+            <Reveal key={step.title} delay={i * 0.08} className="group">
+              <step.icon
+                className="size-6 text-primary transition-transform duration-200 ease-out group-hover:scale-110"
+                strokeWidth={1.5}
+              />
               <h3 className="mt-5 text-lg font-medium text-foreground">{step.title}</h3>
               <p className="mt-2 max-w-[32ch] text-sm leading-relaxed text-muted-foreground">
                 {step.body}

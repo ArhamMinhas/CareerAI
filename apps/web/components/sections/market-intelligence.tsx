@@ -4,6 +4,7 @@ import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "rec
 import { Container } from "@/components/ui/container";
 import { Section } from "@/components/ui/section";
 import { Reveal } from "@/components/motion/reveal";
+import { cardHover, cn } from "@/lib/utils";
 
 const demandData = [
   { month: "Jan", python: 62, rag: 18 },
@@ -30,7 +31,7 @@ export function MarketIntelligence() {
         </Reveal>
 
         <Reveal delay={0.1}>
-          <div className="rounded-xl border border-border bg-surface p-6">
+          <div className={cn(cardHover, "rounded-xl border border-border bg-surface p-6")}>
             <div className="h-64 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={demandData} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
