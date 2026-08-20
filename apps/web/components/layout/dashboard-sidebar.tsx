@@ -17,10 +17,11 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { SignOutButton } from "@/components/auth/sign-out-button";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/profile", label: "Profile", icon: User },
+  { href: "/dashboard/profile", label: "Profile", icon: User },
   { href: "/resume", label: "Resume", icon: FileText },
   { href: "/skills", label: "Skills", icon: Target },
   { href: "/career", label: "Career", icon: Compass },
@@ -63,7 +64,7 @@ export function DashboardSidebar() {
       </nav>
 
       <div className="flex items-center justify-between px-3">
-        <span className="text-xs text-muted-foreground">Theme</span>
+        <SignOutButton />
         <ThemeToggle />
       </div>
     </aside>

@@ -66,7 +66,45 @@ erDiagram
         int target_years_experience
         boolean is_active
     }
+    EDUCATION {
+        uuid id PK
+        uuid profile_id FK
+        text institution
+        text degree
+        text field_of_study
+        date start_date
+        date end_date "null = currently enrolled"
+        text description
+        timestamptz deleted_at "soft delete, §1"
+    }
+    EXPERIENCE {
+        uuid id PK
+        uuid profile_id FK
+        text company
+        text title
+        text location
+        text employment_type
+        date start_date
+        date end_date "null = current role"
+        text description
+        timestamptz deleted_at "soft delete, §1"
+    }
+    PROJECTS {
+        uuid id PK
+        uuid profile_id FK
+        text title
+        text description
+        text url
+        text repo_url
+        date start_date
+        date end_date
+        timestamptz deleted_at "soft delete, §1"
+    }
 ```
+
+(`EDUCATION`/`EXPERIENCE`/`PROJECTS` are also parsed into from resumes — see `RESUMES ||--o{ ...`
+in §2.2 — so their `profile_id` FK is what both the manual-entry Phase 3 UI and the Phase 4
+resume parser write to.)
 
 ### 2.2 Resume & Skills
 
@@ -106,19 +144,23 @@ erDiagram
         text name UK
         text slug UK
         text category
-        text[] synonyms
-        text seo_summary
-        vector embedding
+        text[] synonyms "Phase 6"
+        text seo_summary "Phase 6"
+        vector embedding "Phase 6"
     }
     USER_SKILLS {
         uuid id PK
         uuid profile_id FK
         uuid skill_id FK
-        uuid resume_id FK
+        uuid resume_id FK "null until Phase 4 wires resume-parsed skills in"
         enum proficiency "beginner|intermediate|advanced|expert"
-        enum source "resume|manual|interview"
+        enum source "resume|manual|interview — Phase 3 only ever writes manual"
     }
 ```
+
+Phase 3 ships `SKILLS.name`/`slug`/`category` only — `synonyms`/`seo_summary`/`embedding`
+are added by a later migration once Phase 6 (skill-gap engine, public `/skills/[slug]` pages)
+actually needs them, rather than reserving unused columns now.
 
 ### 2.3 Jobs & Matching
 

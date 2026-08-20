@@ -67,21 +67,43 @@ POST   /api/v1/auth/password-reset
 GET    /api/v1/auth/me
 ```
 
-### Profile
+### Profile (Phase 3)
+
+`Profile` is 1:1 with `User`, created lazily on first `GET`/`PATCH /profile` rather than at
+signup. Education/experience/projects/skills are NOT nested in the profile response — each is
+its own resource, fetched separately (the frontend does this as one `Promise.all`). Every
+sub-resource route is scoped to the caller's own profile; an id that exists but belongs to a
+different user 404s rather than 403s, so ownership isn't leaked.
+
 ```
 GET    /api/v1/profile
 PATCH  /api/v1/profile
+
+GET    /api/v1/profile/education
 POST   /api/v1/profile/education
 PATCH  /api/v1/profile/education/{id}
-DELETE /api/v1/profile/education/{id}
+DELETE /api/v1/profile/education/{id}        -> soft delete (deleted_at)
+
+GET    /api/v1/profile/experience
 POST   /api/v1/profile/experience
 PATCH  /api/v1/profile/experience/{id}
-DELETE /api/v1/profile/experience/{id}
+DELETE /api/v1/profile/experience/{id}       -> soft delete
+
+GET    /api/v1/profile/projects
 POST   /api/v1/profile/projects
 PATCH  /api/v1/profile/projects/{id}
-DELETE /api/v1/profile/projects/{id}
-POST   /api/v1/career-goals
+DELETE /api/v1/profile/projects/{id}         -> soft delete
+
+GET    /api/v1/profile/skills                -> the caller's own UserSkill rows
+POST   /api/v1/profile/skills                -> {skill_name, proficiency}; get-or-creates the
+                                                 Skill taxonomy row by name, 409 if already added
+PATCH  /api/v1/profile/skills/{id}           -> proficiency only
+DELETE /api/v1/profile/skills/{id}           -> hard delete (not soft — see docs/DATABASE.md §1)
+
 GET    /api/v1/career-goals
+POST   /api/v1/career-goals
+PATCH  /api/v1/career-goals/{id}
+DELETE /api/v1/career-goals/{id}             -> hard delete
 ```
 
 ### Resumes
@@ -97,10 +119,10 @@ DELETE /api/v1/resumes/{id}
 
 ### Skills
 ```
-GET    /api/v1/skills                      -> taxonomy browse/search
-GET    /api/v1/skills/{id_or_slug}
-GET    /api/v1/skills/gaps?target_role=ai_engineer
-POST   /api/v1/skills/gaps/refresh
+GET    /api/v1/skills                      -> ?q= search (Phase 3: manual-entry autocomplete)
+GET    /api/v1/skills/{id_or_slug}         -> Phase 6
+GET    /api/v1/skills/gaps?target_role=ai_engineer   -> Phase 6
+POST   /api/v1/skills/gaps/refresh         -> Phase 6
 ```
 
 ### Public content (SEO surface — no auth required)

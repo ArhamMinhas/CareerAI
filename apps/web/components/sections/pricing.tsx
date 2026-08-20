@@ -12,7 +12,7 @@ const tiers = [
     period: "forever",
     features: ["1 resume analysis", "Basic skill-gap report", "5 job matches per month"],
     cta: "Get started",
-    href: "/dashboard",
+    href: "/sign-up",
     highlighted: false,
   },
   {
@@ -26,7 +26,7 @@ const tiers = [
       "AI mock interviews",
     ],
     cta: "Get started",
-    href: "/dashboard",
+    href: "/sign-up",
     highlighted: true,
   },
   {

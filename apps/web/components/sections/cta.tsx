@@ -15,7 +15,7 @@ export function Cta() {
             Upload a resume and get a real analysis in minutes, not a generic checklist.
           </p>
           <div className="mt-8">
-            <ButtonLink href="/dashboard" size="lg">
+            <ButtonLink href="/sign-up" size="lg">
               Get started
             </ButtonLink>
           </div>

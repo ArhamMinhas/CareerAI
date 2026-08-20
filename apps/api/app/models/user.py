@@ -8,6 +8,7 @@ from app.core.db import Base
 from app.models.mixins import TimestampMixin, UUIDPKMixin
 
 if TYPE_CHECKING:
+    from app.models.career_goal import CareerGoal
     from app.models.profile import Profile
 
 
@@ -34,4 +35,7 @@ class User(UUIDPKMixin, TimestampMixin, Base):
 
     profile: Mapped["Profile"] = relationship(
         back_populates="user", uselist=False, cascade="all, delete-orphan"
+    )
+    career_goals: Mapped[list["CareerGoal"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan", lazy="selectin"
     )

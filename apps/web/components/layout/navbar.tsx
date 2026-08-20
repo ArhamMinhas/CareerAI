@@ -39,7 +39,7 @@ export function Navbar() {
 
         <div className="hidden items-center gap-3 lg:flex">
           <ThemeToggle />
-          <ButtonLink href="/dashboard" size="md">
+          <ButtonLink href="/sign-up" size="md">
             Get started
           </ButtonLink>
         </div>
@@ -74,7 +74,7 @@ export function Navbar() {
                 {link.label}
               </a>
             ))}
-            <ButtonLink href="/dashboard" size="md" className="mt-2">
+            <ButtonLink href="/sign-up" size="md" className="mt-2">
               Get started
             </ButtonLink>
           </Container>

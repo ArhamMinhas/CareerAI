@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, func
 from sqlalchemy.dialects.postgresql import UUID
@@ -24,3 +24,14 @@ class TimestampMixin:
         onupdate=func.now(),
         nullable=False,
     )
+
+
+class SoftDeleteMixin:
+    """`deleted_at` for user-facing content tables (docs/DATABASE.md §1) — a DELETE endpoint
+    sets this instead of removing the row, and list/read queries filter `deleted_at IS NULL`.
+    Actual row removal is reserved for GDPR-style erasure requests, not normal user deletes."""
+
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    def soft_delete(self) -> None:
+        self.deleted_at = datetime.now(UTC)

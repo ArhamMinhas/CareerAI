@@ -77,9 +77,45 @@ scroll-reveal animations (`whileInView`) only trigger on real scroll — a naive
 screenshot tool without that simulation reads as blank, which is expected `whileInView`
 behavior, not a bug. Zero console errors/hydration warnings on a clean server start.
 
-## Phase 3 — User / Profile System ⬜
+## Phase 3 — User / Profile System ✅
 
-Profile, education, experience, projects, skills (manual entry), career goals — CRUD UI + API.
+Profile, education, experience, projects, skills (manual entry), career goals — CRUD UI + API,
+plus the email/password auth pages this phase needed to actually exercise it (`/sign-in`,
+`/sign-up`, dashboard route guard) — flagged as Phase 3 work in `proxy.ts`'s own comment back
+in Phase 1, since `proxy.ts` only refreshes the session cookie, it never gated a route.
+
+**Backend:** `education`, `experience`, `projects`, `skills`, `user_skills`, `career_goals`
+tables (Alembic migration `994aa88465af`). `education`/`experience`/`projects` use soft delete
+(`deleted_at`, docs/DATABASE.md §1); `user_skills`/`career_goals` are hard-deleted — they're
+join-like/preference rows, not durable content. Routes: `GET`/`PATCH /profile` (lazily creates
+the `Profile` row on first touch, same pattern `get_current_user` already used for `users`);
+full CRUD under `/profile/education`, `/profile/experience`, `/profile/projects`,
+`/profile/skills` (all scoped to the caller's own profile — a mismatched id 404s rather than
+403s, so ownership isn't leaked); full CRUD on `/career-goals`; `GET /skills?q=` for the
+manual-entry autocomplete (get-or-create by name, not the full taxonomy browse/gap-analysis
+surface — that's Phase 6).
+
+**Frontend:** `/sign-in`, `/sign-up` (Supabase email/password only — Google OAuth from
+docs/SECURITY.md is deferred, since it needs provider credentials configured in the Supabase
+project that don't exist yet); `app/dashboard/layout.tsx` now redirects to `/sign-in` server-
+side (`getUser()`, not `getSession()`, since it decides whether to render the authenticated
+shell at all) when unauthenticated; `/dashboard/profile` — basic info, career goals,
+experience, education, projects, skills, each with real loading/empty/error-with-retry states
+and the established hover/motion design system.
+
+**Real bug found and fixed during verification:** the frontend's `apiFetch` helper called
+`createClient()` (a fresh Supabase browser client) on every single request. The profile page
+fires 6 parallel requests via `Promise.all`, and under real browser concurrency (not
+reproducible with curl or a bare `Promise.all` of `fetch` — both lack the multiple client
+instances), separate freshly-initializing client instances raced on session state and some
+sent no/stale auth, surfacing as genuine 401s. Fixed with a single shared client instance
+(`apps/web/lib/api.ts`).
+
+**Verified end-to-end**, not just via lint/typecheck/test/build: a real Supabase user created
+via the Admin API, signed in through the actual `/sign-in` form (not a mocked session), full
+CRUD exercised through the real UI for every sub-resource, data confirmed present after a hard
+reload, sign-out confirmed, and the unauthenticated `/dashboard` redirect confirmed — in both
+themes, zero console errors.
 
 ## Phase 4 — Resume Intelligence ⬜
 

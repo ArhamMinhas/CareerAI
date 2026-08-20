@@ -27,7 +27,7 @@ export function Hero() {
             and builds the path to your next opportunity.
           </p>
           <div className="mt-10 flex flex-wrap items-center gap-4">
-            <ButtonLink href="/dashboard" size="lg">
+            <ButtonLink href="/sign-up" size="lg">
               Get started
             </ButtonLink>
             <ButtonLink href="#how-it-works" variant="secondary" size="lg">

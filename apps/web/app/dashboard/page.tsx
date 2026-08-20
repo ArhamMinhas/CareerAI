@@ -71,11 +71,11 @@ export default function DashboardPage() {
       >
         <h2 className="text-sm font-medium text-foreground">Get started</h2>
         <p className="max-w-[52ch] text-sm text-muted-foreground">
-          Resume upload and profile setup are the next things to build. For now, this
-          confirms the dashboard shell, navigation, and theming all work end to end.
+          Add your education, experience, projects, and skills — resume analysis and job
+          matching will use this once those ship.
         </p>
-        <ButtonLink href="/" variant="secondary" size="md">
-          Back to home
+        <ButtonLink href="/dashboard/profile" size="md">
+          Complete your profile
         </ButtonLink>
       </div>
     </div>
