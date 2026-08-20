@@ -96,19 +96,23 @@ export function ResumePageClient() {
   const detailToShow = detail && detail.id === selectedId ? detail : null;
   const errorToShow = detailError && detailError.id === selectedId ? detailError.message : null;
 
+  // Both re-fetch the whole list from the server (via bumping `attempt`) rather than
+  // splicing the change into local state directly. Splicing has a real race: if the
+  // initial mount fetch is still in flight when an upload/delete completes, it resolves
+  // *after* the splice and overwrites it with the stale pre-change list — reproduced live
+  // (a freshly uploaded resume disappeared from the list while its own detail panel, loaded
+  // by id, still showed it). Bumping `attempt` reuses the list effect's own cleanup
+  // (`active = false`) to cancel any in-flight fetch before the fresh one starts, so
+  // whichever fetch responds is always the current one.
   function handleUploaded(resume: ResumeSummary) {
-    if (state.status === "ready") {
-      setState({ status: "ready", resumes: [resume, ...state.resumes] });
-    }
     setSelectedId(resume.id);
+    setAttempt((a) => a + 1);
   }
 
   function handleDeleted() {
-    if (state.status === "ready" && selectedId) {
-      setState({ status: "ready", resumes: state.resumes.filter((r) => r.id !== selectedId) });
-    }
     setSelectedId(null);
     setDetail(null);
+    setAttempt((a) => a + 1);
   }
 
   function handleReanalyzed() {
