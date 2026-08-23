@@ -7,11 +7,12 @@ import { Footer } from "@/components/layout/footer";
 import { SmoothScroll } from "@/components/layout/smooth-scroll";
 import { Section } from "@/components/ui/section";
 import { Container } from "@/components/ui/container";
+import { ButtonLink } from "@/components/ui/button";
 import { Reveal } from "@/components/motion/reveal";
 import { CareerCard } from "@/components/careers/career-card";
 import { BreadcrumbJsonLd } from "@/components/seo/breadcrumb-json-ld";
 import { fetchPublic, PublicApiError } from "@/lib/public-api";
-import { cn } from "@/lib/utils";
+import { cardHoverMotion, cn } from "@/lib/utils";
 import type { CareerPath, CareerPathDetail } from "@/lib/types/career-path";
 
 export const revalidate = 3600;
@@ -78,7 +79,7 @@ export default async function CareerDetailPage({
       />
       <Navbar />
       <main>
-        <Section className="pb-16 pt-32 lg:pt-40">
+        <Section className="pb-16 pt-24 lg:pt-28">
           <Container>
             <Reveal>
               <Link
@@ -114,7 +115,7 @@ export default async function CareerDetailPage({
                 </div>
               </Reveal>
 
-              <Reveal delay={0.1}>
+              <Reveal delay={0.1} className="lg:sticky lg:top-28 lg:self-start">
                 <div className="rounded-xl border border-border bg-surface p-6">
                   <h2 className="text-sm font-medium text-foreground">Required skills</h2>
                   <p className="mt-1 text-xs text-muted-foreground">
@@ -151,8 +152,32 @@ export default async function CareerDetailPage({
               </Reveal>
             </div>
 
+            <div className="mt-16">
+              <Reveal>
+                <div
+                  className={cn(
+                    cardHoverMotion,
+                    "flex flex-col items-start gap-4 rounded-xl border border-border bg-surface p-8 sm:flex-row sm:items-center sm:justify-between"
+                  )}
+                >
+                  <div>
+                    <h2 className="text-lg font-semibold tracking-tight text-foreground">
+                      See your own gap against {careerPath.title}
+                    </h2>
+                    <p className="mt-1.5 max-w-[52ch] text-sm text-muted-foreground">
+                      Add your skills and get a real, prioritized breakdown of exactly what
+                      separates you from this role.
+                    </p>
+                  </div>
+                  <ButtonLink href="/sign-up" size="md" className="shrink-0">
+                    Get started
+                  </ButtonLink>
+                </div>
+              </Reveal>
+            </div>
+
             {careerPath.related_career_paths.length > 0 ? (
-              <div className="mt-24">
+              <div className="mt-16">
                 <Reveal>
                   <h2 className="text-2xl font-semibold tracking-tight text-foreground">
                     Related career paths

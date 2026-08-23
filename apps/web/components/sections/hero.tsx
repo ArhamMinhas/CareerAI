@@ -40,7 +40,7 @@ export function Hero() {
           initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.8, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
-          className="relative aspect-square w-full max-w-md justify-self-center lg:max-w-none lg:justify-self-stretch"
+          className="relative aspect-square w-full max-w-md justify-self-center lg:aspect-auto lg:h-full lg:max-w-none lg:min-h-128 lg:self-stretch lg:justify-self-stretch"
         >
           <SkillNetwork />
         </motion.div>

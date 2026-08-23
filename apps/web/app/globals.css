@@ -3,4 +3,12 @@
 body {
   background: var(--color-background);
   color: var(--color-foreground);
+  /* A restrained dot-grid texture, not a color effect — fills large empty stretches of page
+     with intentional structure instead of dead white/black space, without reaching for a
+     decorative gradient/glow (docs/UI_ARCHITECTURE.md's "one purposeful glow" principle stays
+     scoped to the hero). Fixed attachment so it reads as a texture on the page, not something
+     that scrolls oddly with content. */
+  background-image: radial-gradient(var(--color-border) 1px, transparent 1px);
+  background-size: 28px 28px;
+  background-attachment: fixed;
 }

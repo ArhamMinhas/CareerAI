@@ -38,7 +38,10 @@ function getServerSnapshot() {
 }
 
 const VARIANTS = {
-  hero: { nodeCount: 28, radius: 3.2, cameraDistance: 7 },
+  // Bigger/closer than before to match the hero's now-taller canvas (components/sections/
+  // hero.tsx) — a wider radius plus a nearer camera fills the larger frame instead of leaving
+  // the same small constellation floating in more empty space.
+  hero: { nodeCount: 34, radius: 4.2, cameraDistance: 7.5 },
   compact: { nodeCount: 14, radius: 2.4, cameraDistance: 6 },
 };
 

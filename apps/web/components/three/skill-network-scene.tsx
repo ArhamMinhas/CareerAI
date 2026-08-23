@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, type ThreeElements, type ThreeEvent } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
+import { Bloom, EffectComposer } from "@react-three/postprocessing";
 import * as THREE from "three";
 
 const VIOLET = new THREE.Color("#8b5cf6");
@@ -151,11 +152,30 @@ function Nodes({
   // mean a setState-per-frame render storm. Declared and used entirely within this component
   // (never passed as a prop) so the React Compiler never sees a ref crossing a render boundary.
   const pulsesRef = useRef(new Map<number, number>());
+  // Ambient "signal" pulses — a hub lights up on its own every few seconds, independent of
+  // hover/click, so the network reads as a live system rather than a static wireframe.
+  // Unsolicited/automatic, so it's gated behind `!reduceMotion` like the idle bob above.
+  // Fixed initial delay — `useRef`'s initializer runs during render, and calling `Math.random()`
+  // there would make this component impure. The recurring reschedule below (inside `useFrame`,
+  // not render) is where the actual randomization happens.
+  const nextAmbientPulseAtRef = useRef(2.5);
 
   useFrame((state) => {
     const mesh = meshRef.current;
     if (!mesh) return;
     const t = state.clock.elapsedTime;
+
+    if (!reduceMotion && t > nextAmbientPulseAtRef.current) {
+      const hubIndices: number[] = [];
+      nodes.forEach((n, idx) => {
+        if (n.isHub) hubIndices.push(idx);
+      });
+      if (hubIndices.length > 0) {
+        const pick = hubIndices[Math.floor(Math.random() * hubIndices.length)];
+        pulsesRef.current.set(pick, t);
+      }
+      nextAmbientPulseAtRef.current = t + 1.6 + Math.random() * 2.4;
+    }
 
     nodes.forEach((node, i) => {
       // Organic per-node float — each node bobs on its own phase/speed/amplitude so the
@@ -169,11 +189,13 @@ function Nodes({
       if (hovered === i) scale *= 1.7;
 
       const pulseStart = pulsesRef.current.get(i);
+      let pulseStrength = 0;
       if (pulseStart !== undefined) {
         const elapsed = t - pulseStart;
         const duration = 0.6;
         if (elapsed < duration) {
-          scale *= 1 + Math.sin((elapsed / duration) * Math.PI) * 0.9;
+          pulseStrength = Math.sin((elapsed / duration) * Math.PI);
+          scale *= 1 + pulseStrength * 0.9;
         } else {
           pulsesRef.current.delete(i);
         }
@@ -184,6 +206,7 @@ function Nodes({
       mesh.setMatrixAt(i, dummy.matrix);
 
       color.copy(hovered === i ? VIOLET_BRIGHT : VIOLET);
+      if (pulseStrength > 0) color.lerp(VIOLET_BRIGHT, pulseStrength);
       mesh.setColorAt(i, color);
     });
 
@@ -343,6 +366,19 @@ export function SkillNetworkScene({
             maxPolarAngle={Math.PI / 2 + 0.6}
           />
         ) : null}
+        {/* Selective glow on the nodes/pulses only — the transparent canvas contributes zero
+            luminance, so bloom picks up just the bright violet instances, not a wash over
+            everything. This is the single highest-impact upgrade from "flat wireframe" to
+            "premium tech visual." mipmapBlur keeps it soft without a heavy resolution cost. */}
+        <EffectComposer>
+          <Bloom
+            luminanceThreshold={0.2}
+            luminanceSmoothing={0.9}
+            intensity={1.1}
+            mipmapBlur
+            radius={0.8}
+          />
+        </EffectComposer>
       </Canvas>
 
       {hover ? (

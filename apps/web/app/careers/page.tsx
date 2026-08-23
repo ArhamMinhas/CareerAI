@@ -43,7 +43,7 @@ export default async function CareersPage() {
     <SmoothScroll>
       <Navbar />
       <main>
-        <Section className="pb-16 pt-32 lg:pt-40">
+        <Section className="pb-16 pt-24 lg:pt-28">
           <Container>
             <Reveal>
               <p className="text-sm font-medium text-primary">Career paths</p>

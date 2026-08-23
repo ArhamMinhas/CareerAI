@@ -87,6 +87,9 @@ explicitly `noindex`, excluded from the sitemap, since it's private, personalize
 - **Visual language:** glassmorphism used sparingly (cards on the landing page/dashboard hero
   areas), subtle gradients, soft shadows, thin borders, generous whitespace — restrained rather
   than maximal, per spec §8 ("avoid excessive visual effects").
+- **Background texture:** a faint fixed dot-grid (`body`, `app/globals.css`) gives large empty
+  page areas intentional structure instead of reading as dead space — a texture, not a color
+  effect, so it stays distinct from the hero's one deliberate ambient gradient glow.
 
 ## 5. Animation system
 
@@ -121,6 +124,23 @@ Implementation discipline (spec §9):
 - Low-poly geometry, instanced meshes for repeated nodes, capped particle counts, and a frame
   budget — the 3D scene is profiled against a target frame time, not built and left unmeasured.
 - `prefers-reduced-motion` disables camera drift/auto-rotation even when the 3D canvas is shown.
+- **Selective bloom** (`@react-three/postprocessing`'s `Bloom`, tuned by luminance threshold) on
+  the node/pulse material only — the transparent canvas contributes zero luminance, so bloom
+  never washes the whole scene, just the bright violet instances. Added after an early build felt
+  visually flat ("competent wireframe, not a premium visual"); this was the single highest-impact
+  fix. An ambient per-hub "signal pulse" (random hub lights up every few seconds, independent of
+  hover/click, gated behind `!reduceMotion`) gives the same reason: a static network reads as
+  inert no matter how well-lit it is.
+
+### 6.1 Avoiding dead space around 3D/content
+
+A 3D visual (or any content block) sized much smaller than its container reads as a bug, not
+restraint — the empty margin around it looks unintentional. When a canvas/visual is the focal
+element of a section, size its container to the section's real available space (e.g. the hero's
+network container is `lg:h-full` matching the hero's own `min-h`, not a fixed `aspect-square`
+capped well below it) and scale the *scene's* own radius/camera distance to match, not just the
+CSS box — enlarging the container alone leaves the same small content floating in a bigger empty
+frame.
 
 ## 7. Responsive design
 

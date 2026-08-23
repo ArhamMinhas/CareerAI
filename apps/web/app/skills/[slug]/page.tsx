@@ -6,6 +6,7 @@ import { Footer } from "@/components/layout/footer";
 import { SmoothScroll } from "@/components/layout/smooth-scroll";
 import { Section } from "@/components/ui/section";
 import { Container } from "@/components/ui/container";
+import { ButtonLink } from "@/components/ui/button";
 import { Reveal } from "@/components/motion/reveal";
 import { BreadcrumbJsonLd } from "@/components/seo/breadcrumb-json-ld";
 import { fetchPublic, PublicApiError } from "@/lib/public-api";
@@ -94,7 +95,7 @@ export default async function SkillDetailPage({
       />
       <Navbar />
       <main>
-        <Section className="pb-16 pt-32 lg:pt-40">
+        <Section className="pb-16 pt-24 lg:pt-28">
           <Container className="max-w-4xl">
             <Reveal>
               {skill.category ? (
@@ -159,6 +160,27 @@ export default async function SkillDetailPage({
                 </div>
               </Reveal>
             ) : null}
+
+            <Reveal delay={0.15} className="mt-16">
+              <div
+                className={cn(
+                  cardHoverMotion,
+                  "flex flex-col items-start gap-4 rounded-xl border border-border bg-surface p-8 sm:flex-row sm:items-center sm:justify-between"
+                )}
+              >
+                <div>
+                  <h2 className="text-lg font-semibold tracking-tight text-foreground">
+                    Do you have {skill.name}?
+                  </h2>
+                  <p className="mt-1.5 max-w-[52ch] text-sm text-muted-foreground">
+                    Add it to your profile and see exactly which roles it moves you closer to.
+                  </p>
+                </div>
+                <ButtonLink href="/sign-up" size="md" className="shrink-0">
+                  Get started
+                </ButtonLink>
+              </div>
+            </Reveal>
           </Container>
         </Section>
       </main>
