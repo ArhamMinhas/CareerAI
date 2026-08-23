@@ -1,10 +1,12 @@
 name: Deploy
 
+# Phase 16 scaffolding: no real Vercel/Railway deploy targets are configured yet, so this only
+# runs on an explicit manual dispatch. It used to also fire automatically via `workflow_run` on
+# every successful CI run on master, which created a real GitHub Deployment record each time and
+# then always failed the smoke-test step (https://staging.careerai.app doesn't exist yet) —
+# showing up as a permanent red "failed" deployment on the repo's homepage. Re-add the
+# `workflow_run` trigger once real deploy credentials/targets exist.
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [main, master]
   workflow_dispatch:
     inputs:
       environment:
@@ -26,9 +28,7 @@ jobs:
   deploy-staging:
     name: Deploy to Staging
     runs-on: ubuntu-latest
-    if: |
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging'
     environment:
       name: staging
       url: https://staging.careerai.app
