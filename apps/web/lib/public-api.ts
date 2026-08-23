@@ -1,5 +1,7 @@
 type Envelope<T> = { data: T; meta: { request_id: string | null; next_cursor: string | null } };
 
+const MAX_PAGINATED_PAGES = 10; // bounds build-time crawling of a cursor-paginated listing
+
 // `API_INTERNAL_URL` (server-only, no `NEXT_PUBLIC_` prefix — never bundled into client JS)
 // takes priority over `NEXT_PUBLIC_API_URL` here because this module only ever runs
 // server-side (SSR/SSG for the public content pages), and inside Docker those two URLs are
@@ -46,4 +48,38 @@ export async function fetchPublic<T>(path: string, revalidateSeconds: number): P
 
   const envelope = (await response.json()) as Envelope<T>;
   return envelope.data;
+}
+
+/**
+ * Follows `meta.next_cursor` (docs/API.md §1) to collect every row of a cursor-paginated public
+ * listing, for `generateStaticParams` on cursor-paginated resources (`/jobs/[id]`) where the
+ * curated catalogs (`/careers`, `/skills`) fit in one unpaginated page. Bounded by
+ * `MAX_PAGINATED_PAGES` rather than following `next_cursor` forever — the build shouldn't be
+ * able to run away pre-rendering an unbounded feed; anything past the cap still resolves fine
+ * at request time via `dynamicParams`.
+ */
+export async function fetchPublicAllPages<T>(
+  path: string,
+  revalidateSeconds: number,
+  limit = 50
+): Promise<T[]> {
+  const separator = path.includes("?") ? "&" : "?";
+  const items: T[] = [];
+  let cursor: string | null = null;
+
+  for (let page = 0; page < MAX_PAGINATED_PAGES; page++) {
+    const cursorParam: string = cursor ? `&cursor=${encodeURIComponent(cursor)}` : "";
+    const response = await fetch(
+      `${API_BASE}${path}${separator}limit=${limit}${cursorParam}`,
+      { next: { revalidate: revalidateSeconds } }
+    );
+    if (!response.ok) break;
+
+    const envelope = (await response.json()) as Envelope<T[]>;
+    items.push(...envelope.data);
+    cursor = envelope.meta.next_cursor;
+    if (!cursor) break;
+  }
+
+  return items;
 }

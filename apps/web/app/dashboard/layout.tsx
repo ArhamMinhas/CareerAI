@@ -9,10 +9,10 @@ export const metadata: Metadata = {
 };
 
 export default async function DashboardLayout({ children }: LayoutProps<"/dashboard">) {
-  // Route-level access control (proxy.ts only refreshes the session cookie, it doesn't gate
-  // routes) — Phase 3, per the comment left on proxy.ts back in Phase 1. `getUser()` (not
-  // `getSession()`) re-validates the token against Supabase rather than trusting the cookie
-  // as-is, since this decides whether to show the authenticated shell at all.
+  // Route-level access control (middleware.ts only refreshes the session cookie, it doesn't
+  // gate routes) — Phase 3, per the comment left on middleware.ts back in Phase 1.
+  // `getUser()` (not `getSession()`) re-validates the token against Supabase rather than
+  // trusting the cookie as-is, since this decides whether to show the authenticated shell at all.
   const supabase = await createClient();
   const {
     data: { user },

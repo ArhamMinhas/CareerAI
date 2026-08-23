@@ -1,0 +1,73 @@
+# Pre-commit hooks — prevent common issues before they reach CI.
+# Install: `pip install pre-commit && pre-commit install`
+# Run manually: `pre-commit run --all-files`
+
+repos:
+  # General checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-case-conflict
+      - id: check-json
+      - id: check-merge-conflict
+      - id: detect-private-key
+
+  # Python — ruff (linter + formatter)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.11
+    hooks:
+      - id: ruff
+        args: [--fix]
+        types: [python]
+      - id: ruff-format
+        types: [python]
+
+  # Python — type checking
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.7.1
+    hooks:
+      - id: mypy
+        additional_dependencies: ['pydantic', 'pydantic-settings', 'sqlalchemy']
+        files: ^apps/api/app/
+        exclude: ^apps/api/alembic/
+
+  # Node — ESLint
+  - repo: https://github.com/pre-commit/mirrors-eslint
+    rev: v8.55.0
+    hooks:
+      - id: eslint
+        types: [javascript, jsx, typescript, tsx]
+        files: ^apps/web/
+        exclude: ^apps/web/node_modules/
+        additional_dependencies:
+          - eslint
+          - eslint-config-next
+          - typescript
+
+  # Security — detect-secrets
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+
+  # YAML validation
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.33.0
+    hooks:
+      - id: yamllint
+        args: [--config-data, '{extends: default, rules: {line-length: disable}}']
+
+  # Docker — hadolint
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.12.1-beta
+    hooks:
+      - id: hadolint-docker
+        entry: hadolint
+        language: docker_image
+        types: [dockerfile]

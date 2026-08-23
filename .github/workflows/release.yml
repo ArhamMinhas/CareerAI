@@ -1,0 +1,220 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., v1.2.3)'
+        required: true
+      release_type:
+        description: 'Release type'
+        required: true
+        default: 'minor'
+        type: choice
+        options:
+          - major
+          - minor
+          - patch
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  validate-release:
+    name: Validate Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate version format
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          if ! [[ $VERSION =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?$ ]]; then
+            echo "❌ Invalid version format: $VERSION"
+            echo "Expected format: v1.2.3 or v1.2.3-rc1"
+            exit 1
+          fi
+          echo "✓ Version format valid: $VERSION"
+
+      - name: Check main branch
+        run: |
+          if [[ "${{ github.ref }}" != "refs/heads/main" && "${{ github.ref }}" != "refs/heads/master" ]]; then
+            echo "❌ Releases must be from main/master branch"
+            exit 1
+          fi
+
+      - name: Check CI status
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Find the most recent CI run for this exact commit, not this workflow's own
+            // (still in-progress, so conclusion is never available) run.
+            const { data } = await github.rest.actions.listWorkflowRunsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              head_sha: context.sha,
+            });
+            const ciRun = data.workflow_runs.find((run) => run.name === 'CI');
+            if (!ciRun || ciRun.conclusion !== 'success') {
+              throw new Error('All CI checks must pass on this commit before releasing');
+            }
+
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: validate-release
+    outputs:
+      release_id: ${{ steps.create-release.outputs.id }}
+      upload_url: ${{ steps.create-release.outputs.upload_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          CHANGELOG=$(git log $(git describe --tags --abbrev=0)..HEAD --oneline --pretty=format:"%h %s")
+          
+          # Create release notes from commits
+          echo "## What's Changed" > release-notes.md
+          echo "" >> release-notes.md
+          echo "$CHANGELOG" | while read line; do
+            hash=$(echo $line | cut -d' ' -f1)
+            message=$(echo $line | cut -d' ' -f2-)
+            echo "- $message ($hash)" >> release-notes.md
+          done
+          
+          cat release-notes.md
+
+      - name: Create GitHub Release
+        id: create-release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const version = '${{ github.event.inputs.version }}';
+            const changelog = fs.readFileSync('release-notes.md', 'utf8');
+            
+            const { data: release } = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: version,
+              name: `Release ${version}`,
+              body: changelog,
+              draft: false,
+              prerelease: version.includes('-'),
+            });
+            
+            core.setOutput('id', release.id);
+            core.setOutput('upload_url', release.upload_url);
+            console.log(`✓ Release created: ${release.html_url}`);
+
+  tag-images:
+    name: Tag and Push Release Images
+    runs-on: ubuntu-latest
+    needs: create-release
+    if: success()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+        if: secrets.DOCKER_USERNAME != ''
+
+      - name: Extract version
+        id: version
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          echo "tag=${VERSION#v}" >> $GITHUB_OUTPUT
+
+      - name: Tag and push web image
+        run: |
+          REGISTRY="${{ secrets.DOCKER_REGISTRY }}"
+          VERSION="${{ steps.version.outputs.tag }}"
+          
+          docker pull ${REGISTRY}/careerai-web:main
+          docker tag ${REGISTRY}/careerai-web:main ${REGISTRY}/careerai-web:${VERSION}
+          docker tag ${REGISTRY}/careerai-web:main ${REGISTRY}/careerai-web:latest
+          
+          docker push ${REGISTRY}/careerai-web:${VERSION}
+          docker push ${REGISTRY}/careerai-web:latest
+
+      - name: Tag and push api image
+        run: |
+          REGISTRY="${{ secrets.DOCKER_REGISTRY }}"
+          VERSION="${{ steps.version.outputs.tag }}"
+          
+          docker pull ${REGISTRY}/careerai-api:main
+          docker tag ${REGISTRY}/careerai-api:main ${REGISTRY}/careerai-api:${VERSION}
+          docker tag ${REGISTRY}/careerai-api:main ${REGISTRY}/careerai-api:latest
+          
+          docker push ${REGISTRY}/careerai-api:${VERSION}
+          docker push ${REGISTRY}/careerai-api:latest
+
+      - name: Tag and push worker image
+        run: |
+          REGISTRY="${{ secrets.DOCKER_REGISTRY }}"
+          VERSION="${{ steps.version.outputs.tag }}"
+          
+          docker pull ${REGISTRY}/careerai-worker:main
+          docker tag ${REGISTRY}/careerai-worker:main ${REGISTRY}/careerai-worker:${VERSION}
+          docker tag ${REGISTRY}/careerai-worker:main ${REGISTRY}/careerai-worker:latest
+          
+          docker push ${REGISTRY}/careerai-worker:${VERSION}
+          docker push ${REGISTRY}/careerai-worker:latest
+
+  notify:
+    name: Notify Release
+    runs-on: ubuntu-latest
+    needs: [create-release, tag-images]
+    if: always()
+    steps:
+      - name: Post release to Slack
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          payload: |
+            {
+              "text": "🚀 CareerAI Release ${{ github.event.inputs.version }}",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "📦 CareerAI Release ${{ github.event.inputs.version }}"
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Status:* ${{ job.status }}\n*Author:* ${{ github.actor }}\n*Timestamp:* <!date^${{ github.event.head_commit.timestamp }}^{date_short_pretty} {time_secs}|${{ github.event.head_commit.timestamp }}>"
+                  }
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View Release"
+                      },
+                      "url": "${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.event.inputs.version }}"
+                    }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+        if: always() && secrets.SLACK_WEBHOOK_URL != ''

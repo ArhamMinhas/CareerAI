@@ -1,0 +1,41 @@
+# Docker Compose Override — Local Development Customization
+#
+# This file is auto-loaded by `docker-compose` after docker-compose.yml
+# but is NOT tracked by git (see .gitignore). Use it for local-only overrides:
+# - Debug flags
+# - Port forwarding to different ports
+# - Additional volumes for debugging
+# - Service disabling
+#
+# To use this template: rename to docker-compose.override.yml
+
+version: '3'
+
+services:
+  # Example: Enable debug logging
+  api:
+    environment:
+      DEBUG: "1"
+      # Uncomment to log all SQL queries:
+      # SQLALCHEMY_ECHO: "1"
+
+  # Example: Enable debug logging on worker
+  worker:
+    environment:
+      DEBUG: "1"
+
+  # Example: Expose postgres to host (useful for debugging with pgAdmin or DBeaver)
+  # postgres:
+  #   ports:
+  #     - "5433:5432"  # Different port to avoid conflicts
+
+  # Example: Add pgAdmin for database UI
+  # pgadmin:
+  #   image: dpage/pgadmin4:latest
+  #   environment:
+  #     PGADMIN_DEFAULT_EMAIL: admin@example.com
+  #     PGADMIN_DEFAULT_PASSWORD: admin
+  #   ports:
+  #     - "5050:80"
+  #   depends_on:
+  #     - postgres

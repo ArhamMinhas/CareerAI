@@ -3,31 +3,37 @@
 
 FROM node:22-slim AS base
 WORKDIR /repo
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+RUN --mount=type=cache,target=/var/cache/apt \
+    apt-get update && apt-get install -y --no-install-recommends dumb-init && \
+    rm -rf /var/lib/apt/lists/*
 
 FROM base AS deps
 COPY package.json package-lock.json ./
 COPY apps/web/package.json apps/web/package.json
-# packages/* become real npm packages (with their own package.json) starting Phase 2 —
-# see docs/ROADMAP.md. Add their COPY lines here when that happens; until then they're
-# plain shared files (e.g. packages/config/tailwind-tokens.css, imported via relative path,
-# not as an npm dependency), so `npm ci` doesn't need them.
-RUN npm ci
+# RUN with retry logic in case of transient network issues
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --prefer-offline --no-audit || npm ci --force
 
 # ---- local development: hot reload via volume mount (see docker-compose.yml) ----
 FROM deps AS dev
 COPY . .
 WORKDIR /repo/apps/web
 EXPOSE 3000
-CMD ["npm", "run", "dev"]
+HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3000', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
+CMD ["npm", "run", "dev", "--", "--turbo"]
 
 # ---- production build ----
 FROM deps AS builder
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 COPY . .
-RUN npm run build --workspace=apps/web
+RUN npm run build --workspace=apps/web && npm prune --omit=dev
 
 # ---- production runtime: standalone Next.js server, non-root ----
 FROM base AS production
-ENV NODE_ENV=production
+ENV NODE_ENV=production \
+    NODE_OPTIONS="--max-old-space-size=2048"
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 COPY --from=builder --chown=nextjs:nodejs /repo/apps/web/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /repo/apps/web/.next/static ./apps/web/.next/static
@@ -35,4 +41,7 @@ COPY --from=builder --chown=nextjs:nodejs /repo/apps/web/public ./apps/web/publi
 USER nextjs
 EXPOSE 3000
 ENV PORT=3000
+ENTRYPOINT ["/usr/bin/dumb-init", "--"]
+HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3000', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
 CMD ["node", "apps/web/server.js"]

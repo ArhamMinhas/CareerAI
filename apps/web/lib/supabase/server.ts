@@ -3,10 +3,10 @@ import { cookies } from "next/headers";
 
 /**
  * Server-side Supabase client for use in Server Components / Route Handlers / Server
- * Actions. `cookies()` is async as of Next.js 15+ (Next 16 removed the sync compat shim —
- * see apps/web/README.md). The `setAll` no-op guard matters when this is called from a
- * Server Component render, where Next.js forbids writing cookies (only Server
- * Actions/Route Handlers may); `proxy.ts` is what actually refreshes the session cookie.
+ * Actions. `cookies()` is async as of Next.js 15+. The `setAll` no-op guard matters when
+ * this is called from a Server Component render, where Next.js forbids writing cookies
+ * (only Server Actions/Route Handlers may); `middleware.ts` is what actually refreshes the
+ * session cookie.
  */
 export async function createClient() {
   const cookieStore = await cookies();
@@ -26,7 +26,7 @@ export async function createClient() {
             }
           } catch {
             // Called from a Server Component during render — safe to ignore since
-            // proxy.ts refreshes the session on every request anyway.
+            // middleware.ts refreshes the session on every request anyway.
           }
         },
       },

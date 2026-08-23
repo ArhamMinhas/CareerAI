@@ -10,6 +10,7 @@ import {
   Compass,
   Briefcase,
   Sparkles,
+  ClipboardList,
   Map,
   MessagesSquare,
   BarChart3,
@@ -26,7 +27,8 @@ const navItems = [
   { href: "/dashboard/skill-gap", label: "Skill Gap", icon: Target },
   { href: "/career", label: "Career", icon: Compass },
   { href: "/jobs", label: "Jobs", icon: Briefcase },
-  { href: "/matches", label: "Matches", icon: Sparkles },
+  { href: "/dashboard/matches", label: "Matches", icon: Sparkles },
+  { href: "/dashboard/applications", label: "Applications", icon: ClipboardList },
   { href: "/roadmap", label: "Roadmap", icon: Map },
   { href: "/interviews", label: "Interviews", icon: MessagesSquare },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
@@ -75,7 +77,7 @@ const mobileNavItems = [
   { href: "/dashboard", label: "Home", icon: LayoutDashboard },
   { href: "/dashboard/resume", label: "Resume", icon: FileText },
   { href: "/jobs", label: "Jobs", icon: Briefcase },
-  { href: "/roadmap", label: "Roadmap", icon: Map },
+  { href: "/dashboard/matches", label: "Matches", icon: Sparkles },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

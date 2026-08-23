@@ -6,7 +6,6 @@ const supabasePublishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
 /**
  * Refreshes the Supabase session cookie on every request that isn't a static asset.
- * Named `proxy` (not `middleware`) per the Next.js 16 rename — see apps/web/README.md.
  * This only keeps the session alive; route-level access control still happens per-page
  * (e.g. redirecting unauthenticated users out of the authenticated app shell in Phase 3).
  *
@@ -15,13 +14,13 @@ const supabasePublishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
  * in) — auth-dependent features simply won't work until then, but the rest of the app
  * (including the public marketing pages) still has to render.
  */
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
 
   if (!supabaseUrl || !supabasePublishableKey) {
     if (process.env.NODE_ENV !== "production") {
       console.warn(
-        "[proxy] NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY are not " +
+        "[middleware] NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY are not " +
           "set — skipping session refresh. See docs/CONTRIBUTING.md for Supabase setup."
       );
     }

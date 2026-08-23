@@ -146,16 +146,18 @@ GET    /api/v1/careers/{slug}              -> career path detail + required skil
 
 ### Public content (SEO surface — no auth required)
 
-Backs the indexable `/careers/[slug]`, `/skills/[slug]`, `/companies/[id]`, `/resources/[slug]`
+Backs the indexable `/careers/[slug]`, `/skills/[slug]`, `/companies/[slug]`, `/resources/[slug]`
 pages in [SEO.md](./SEO.md); reads `career_paths`/`resources`/`companies` from
 [DATABASE.md §2.6](./DATABASE.md#26-public-content--seo). Public, cacheable (long-TTL,
 `Cache-Control` set for CDN caching at the edge), and unauthenticated — these are the routes
 Next.js SSR/ISR calls at build/revalidate time, not something a logged-in user's browser hits
-directly per request. `/careers*` shipped in Phase 6 (see its own section above); the rest
-below ship with companies/resources.
+directly per request. `/careers*` shipped in Phase 6 (see its own section above); companies/jobs
+shipped in Phase 7 (see below) — routed by `slug`, not `{id}` as this section originally said,
+matching every other public content type here (see `Company`'s model docstring); resources are
+still ⬜.
 ```
-GET    /api/v1/companies/{id}
-GET    /api/v1/companies/{id}/jobs         -> jobs at this company (for the company page)
+GET    /api/v1/companies/{slug}
+GET    /api/v1/companies/{slug}/jobs       -> jobs at this company (for the company page)
 GET    /api/v1/resources                   -> list published articles, filter by category/tag
 GET    /api/v1/resources/{slug}
 ```

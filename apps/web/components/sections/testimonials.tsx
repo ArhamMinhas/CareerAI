@@ -53,6 +53,7 @@ export function Testimonials() {
                     alt=""
                     width={36}
                     height={36}
+                    unoptimized
                     className="rounded-full"
                   />
                   <div>

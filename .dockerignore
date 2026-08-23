@@ -1,40 +1,70 @@
+# Docker build context exclusions — speeds up build and reduces context size
+
+# Git
 .git
-.github
+.gitignore
+.gitattributes
 
 # Node
-node_modules
-**/node_modules
-.next
-**/.next
-npm-debug.log*
+node_modules/
+npm-debug.log
+yarn-error.log
+.next/
+.turbo/
+dist/
+build/
 
 # Python
-.venv
-**/.venv
-__pycache__
-**/__pycache__
+__pycache__/
 *.pyc
-.pytest_cache
-.mypy_cache
-.ruff_cache
-alembic/versions/__pycache__
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
 
-# Env / secrets
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+Jenkinsfile
+
+# Documentation
+docs/
+README.md
+*.md
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Environment
 .env
-.env.*
-!.env.example
+.env.local
+.env.*.local
 
-# ML artifacts (large binary — see ml/README.md)
-ml/data/raw/*
-ml/data/processed/*
-ml/data/features/*
-ml/models/*
-*.pkl
-*.joblib
-*.onnx
-
-# Editor / OS
-.vscode
-.idea
+# OS
 .DS_Store
 Thumbs.db
+
+# Misc
+.impeccable/
+.editorconfig
+.pre-commit-config.yaml
+Makefile

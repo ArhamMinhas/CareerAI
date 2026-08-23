@@ -6,26 +6,36 @@ FROM python:3.12-slim AS base
 WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
-RUN apt-get update && apt-get install -y --no-install-recommends \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONHASHSEED=random
+RUN --mount=type=cache,target=/var/cache/apt \
+    apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 FROM base AS deps
 COPY apps/api/requirements/base.txt requirements/base.txt
-RUN pip install -r requirements/base.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --upgrade pip && \
+    pip install -r requirements/base.txt
 
 # ---- local development: autoreload not needed for a queue consumer; mirrors prod closely ----
 FROM deps AS dev
 COPY apps/api/requirements/dev.txt requirements/dev.txt
-RUN pip install -r requirements/dev.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r requirements/dev.txt
 COPY apps/api /app
-CMD ["celery", "-A", "app.workers.celery_app", "worker", "--loglevel=info"]
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD celery -A app.workers.celery_app inspect ping || exit 1
+CMD ["celery", "-A", "app.workers.celery_app", "worker", "--loglevel=info", "--concurrency=4"]
 
 # ---- production ----
 FROM deps AS production
-RUN useradd --create-home --shell /bin/false appuser
-COPY apps/api /app
+RUN useradd --create-home --shell /bin/false --uid 1000 appuser
+COPY --chown=appuser:appuser apps/api /app
 USER appuser
-CMD ["celery", "-A", "app.workers.celery_app", "worker", "--loglevel=info"]
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD celery -A app.workers.celery_app inspect ping || exit 1
+CMD ["celery", "-A", "app.workers.celery_app", "worker", "--loglevel=info", "--concurrency=4", "--max-tasks-per-child=1000"]

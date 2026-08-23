@@ -8,6 +8,7 @@ services:
       POSTGRES_USER: careerai
       POSTGRES_PASSWORD: careerai
       POSTGRES_DB: careerai
+      POSTGRES_INITDB_ARGS: "-c shared_buffers=256MB -c max_connections=100"
     ports:
       - "5432:5432"
     volumes:
@@ -18,23 +19,34 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
 
   redis:
     image: redis:7-alpine
     restart: unless-stopped
     ports:
       - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
       retries: 10
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
 
   api:
     build:
       context: ../..
       dockerfile: infrastructure/docker/Dockerfile.api
       target: dev
+      cache_from:
+        - type=gha
     restart: unless-stopped
     env_file:
       - ../../.env
@@ -53,12 +65,22 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 40s
+    security_opt:
+      - no-new-privileges:true
 
   worker:
     build:
       context: ../..
       dockerfile: infrastructure/docker/Dockerfile.worker
       target: dev
+      cache_from:
+        - type=gha
     restart: unless-stopped
     env_file:
       - ../../.env
@@ -75,12 +97,22 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.workers.celery_app inspect ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    security_opt:
+      - no-new-privileges:true
 
   web:
     build:
       context: ../..
       dockerfile: infrastructure/docker/Dockerfile.web
       target: dev
+      cache_from:
+        - type=gha
     restart: unless-stopped
     env_file:
       - ../../.env
@@ -97,7 +129,23 @@ services:
       - /repo/node_modules
       - /repo/apps/web/.next
     depends_on:
-      - api
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"]
+      interval: 30s
+      # `next dev` compiles pages on demand — the first hit to a heavy route (e.g. the 3D
+      # homepage) can legitimately take well over a minute, unlike the pre-built production
+      # image. A short timeout/start_period here just flaps the container to "unhealthy"
+      # during normal first-compile, not an actual failure.
+      timeout: 15s
+      retries: 5
+      start_period: 180s
+    security_opt:
+      - no-new-privileges:true
 
 volumes:
   postgres_data:
+    driver: local
+  redis_data:
+    driver: local

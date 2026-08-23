@@ -1,0 +1,56 @@
+# CareerAI Code Owners
+# When a PR touches files here, these users are automatically requested as reviewers.
+# See https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owners (required for all changes)
+* @ArhamMinhas
+
+# Frontend / Web
+apps/web/ @ArhamMinhas
+apps/web/app/page.tsx @ArhamMinhas
+apps/web/components/ @ArhamMinhas
+
+# Backend / API
+apps/api/ @ArhamMinhas
+apps/api/app/api/ @ArhamMinhas
+apps/api/app/core/ @ArhamMinhas
+apps/api/app/models/ @ArhamMinhas
+apps/api/app/services/ @ArhamMinhas
+apps/api/app/workers/ @ArhamMinhas
+
+# AI / LLM
+apps/api/app/ai/ @ArhamMinhas
+apps/api/app/workers/resume_tasks.py @ArhamMinhas
+
+# ML / Data Science
+apps/api/app/ml/ @ArhamMinhas
+ml/ @ArhamMinhas
+
+# Infrastructure / DevOps
+infrastructure/ @ArhamMinhas
+docker-compose.yml @ArhamMinhas
+Dockerfile* @ArhamMinhas
+.github/workflows/ @ArhamMinhas
+
+# Database / Schema
+apps/api/app/models/ @ArhamMinhas
+apps/api/alembic/ @ArhamMinhas
+docs/DATABASE.md @ArhamMinhas
+
+# Security / Auth
+apps/api/app/core/security.py @ArhamMinhas
+docs/SECURITY.md @ArhamMinhas
+
+# Configuration
+package.json @ArhamMinhas
+package-lock.json @ArhamMinhas
+pyproject.toml @ArhamMinhas
+tsconfig.json @ArhamMinhas
+
+# Documentation
+docs/ @ArhamMinhas
+README.md @ArhamMinhas
+
+# Tests
+apps/api/tests/ @ArhamMinhas
+apps/web/*.test.* @ArhamMinhas

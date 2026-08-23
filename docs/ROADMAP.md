@@ -312,13 +312,105 @@ correctly color-coded, correctly-prioritized skill-gap breakdown for a real targ
 `/careers`, `/careers/[slug]`, and `/skills/[slug]` rendering real seeded content with working
 cross-links in both directions.
 
-## Phase 7 — Job Recommendation ⬜
+## Phase 7 — Job Recommendation ✅
 
-Job database + ingestion, semantic search, hybrid recommendation/ranking
-([ML_PIPELINE.md §2.2](./ML_PIPELINE.md#22-job-match-score)), `/jobs/[id]` and `/companies/[id]`
-pages — this is also when the programmatic-SEO surface from
-[SEO.md §2.3](./SEO.md#23-sitemap-appsitemapts) and `JobPosting`/`Organization` structured data
-go live.
+Job database (`companies`, `jobs`, `job_skills`, `job_matches`, `applications`), cursor
+pagination (`app/core/pagination.py` — first real implementation of API.md §1's documented
+convention), the hybrid `job_match_score` formula
+([ML_PIPELINE.md §2.2](./ML_PIPELINE.md#22-job-match-score): semantic similarity via resume/job
+embedding cosine distance, deterministic skill-overlap/experience/education/preference/location
+scoring — no LLM call, same "LLMs reason, code decides" precedent as the skill-gap engine),
+keyword-then-semantic job search, `/jobs`, `/jobs/[id]`, `/companies/[slug]` pages (SSG/ISR,
+`JobPosting`/`Organization`/`BreadcrumbList` JSON-LD), `/dashboard/matches` and
+`/dashboard/applications`, and a `seed_jobs.py` script standing in for real job-board ingestion
+(no external job API access available — same documented scope deviation as Phase 6 seeding
+career paths by hand).
+
+**Deliberate scope decisions:** `Company` is slug-routed (`/companies/{slug}`), not `/companies/{id}`
+as this doc's route map literally says — the DATABASE.md ERD already gave it a unique `slug`
+(unlike `Job`), and every other public content type here is slug-routed for the same SEO/
+readability reasons; documented on `Company`'s docstring. `GET /api/v1/matches` lives in its own
+router (`app/api/v1/matches.py`), not nested under `/jobs`, matching API.md §5's literal route
+list. The sitemap stays flat (no `sitemap/jobs/0.xml`-style pagination) at this phase's actual
+data volume, same precedent as Phase 6.
+
+**A real bug found via the code-review pass, before this was considered done:**
+`Application` was initially modeled as hard-deleted (matching `JobMatch`/`SkillGap`'s
+cached-computed-output category), but DATABASE.md §1 explicitly names `applications` as a
+soft-deleted, user-facing content table — missed on first pass. Fixed by adding
+`SoftDeleteMixin` and switching its uniqueness constraint to a **partial** unique index over
+non-deleted rows (`postgresql_where="deleted_at IS NULL"`): a plain `UniqueConstraint` would
+have made re-tracking a job after removing it fail with a spurious conflict, since the old
+soft-deleted row would still collide on `(user_id, job_id)`. A regression test
+(`test_create_application_after_delete_does_not_conflict`) covers this directly.
+
+**Frontend/build infrastructure, found and fixed in this same pass:**
+- Next.js was pinned back from 16.3.x to **15.5.23** after `next build` reproducibly crashed
+  during `/_global-error` prerendering with `Cannot read properties of null (reading
+  'useContext')` — a confirmed, still-open upstream bug
+  ([vercel/next.js#84994](https://github.com/vercel/next.js/issues/84994),
+  [#86178](https://github.com/vercel/next.js/issues/86178),
+  [#95741](https://github.com/vercel/next.js/issues/95741)) reproduced on an unmodified commit
+  with both Turbopack and Webpack — unrelated to any app code. `proxy.ts` (a Next 16-only
+  convention) was renamed back to `middleware.ts` accordingly, and `eslint-config-next`'s
+  15.5.x package (still legacy `.eslintrc`-shaped, no flat-config-native export yet) is now
+  bridged into ESLint 9 flat config via `@eslint/eslintrc`'s `FlatCompat` in
+  `eslint.config.mjs`. Revisit once a 16.x patch lands.
+- Separately (and only found *after* the downgrade): `next build` run with `NODE_ENV=development`
+  still set in a live dev container's shell — inherited from `next dev` — produces exactly the
+  same class of prerender crash on both Next versions, since Next's build pipeline assumes
+  production mode. Real production builds (via `docker build`, which never sets
+  `NODE_ENV=development`) are unaffected; this was purely a footgun in ad hoc `docker exec`
+  verification, not a real deployment risk, but worth remembering.
+
+**Docker Gordon (external AI tool) made a large set of concurrent, unreviewed changes to this
+repo's Docker/CI infrastructure mid-session** (Dockerfiles, `docker-compose.yml`, `.dockerignore`,
+`ci.yml`, five new GitHub Actions workflows, `CODEOWNERS`, `.pre-commit-config.yaml`, `Makefile`,
+troubleshooting scripts/docs). Reviewed and fixed the real bugs found in it:
+- `Dockerfile.api`/`Dockerfile.worker`'s `production` stage built `FROM base` instead of
+  `FROM deps`, meaning the production image shipped with **zero Python dependencies installed** —
+  would have crashed instantly on `uvicorn`/`celery` import. Fixed back to `FROM deps`.
+- `DATABASE_URL_SYNC`'s password was replaced with the literal string `[REDACTED]` in three
+  separate files (`docker-compose.yml` ×2, `ci.yml`, `compatibility.yml`) — would have broken
+  every Alembic migration. Restored the real dev password.
+- The worker healthcheck (`ps aux | grep celery`) doesn't work at all on `python:3.12-slim`
+  (no `procps` installed — confirmed via `/bin/sh: ps: not found`); replaced with
+  `celery inspect ping`, which is also a strictly better check (verifies the worker can
+  actually round-trip through the broker, not just that some process exists).
+- `apps/api/app/api/v1/profile.py` gained a `profile.start_date`/`profile.end_date` check that
+  doesn't exist on the `Profile` model at all (those fields belong to `Education`/`Experience`)
+  — broke every `PATCH /profile` call with an `AttributeError`, confirmed via a failing test.
+  Also `await` was dropped from a `db.delete(row)` call, silently no-op-ing skill deletion
+  (confirmed via `RuntimeWarning: coroutine 'AsyncSession.delete' was never awaited`). Both fixed.
+- `.github/CODEOWNERS` used a literal, never-filled-in `@yourname` placeholder throughout.
+- Two logic bugs in the (currently inert, `workflow_dispatch`-only) `deploy.yml`/`release.yml`
+  scaffolding: `deploy.yml` tried to comment on a nonexistent PR issue from a non-PR trigger;
+  `release.yml`'s CI-status check queried its own in-progress run instead of the actual `CI`
+  workflow's run for that commit. Both fixed.
+- `scripts/fix-nextjs-build.{sh,ps1}` checked for `server-external-packages.json`, but the real
+  file (and the actual Turbopack error both scripts are named for) is `.jsonc`.
+
+**Also discovered and recovered from a genuine Docker Desktop engine crash** during this session
+(the daemon started returning `500` on every API call, including `docker version`) — root-caused
+to a resource-exhausted `dockerd` inside the WSL2 VM combined with four zombie Docker Desktop
+processes from a prior session that never exited, blocking a clean restart. Fixed by fully
+quitting Docker Desktop, confirming zero docker-related processes remained, and relaunching
+clean; all five containers (`postgres`, `redis`, `api`, `worker`, `web`) came back healthy
+afterward. The web service's dev healthcheck (`timeout: 3s`) was also too aggressive for
+`next dev`'s on-demand compilation (a first hit to the 3D homepage legitimately takes over a
+minute) and flapped to unhealthy on every restart — bumped to `timeout: 15s`,
+`start_period: 180s`.
+
+**Verified locally end-to-end:** ruff/mypy/pytest clean (124 backend tests, including a
+soft-delete regression test and 24 pure-unit job-matching tests); `alembic check` reports no
+drift, and a downgrade-then-upgrade cycle was verified clean (fixed a missing `DROP TYPE
+application_status` in the migration's `downgrade()` — autogenerate doesn't emit that on its
+own). Frontend lint/typecheck/test all clean; `next build` (Next 15.5.23, Webpack) succeeds
+completely — all 46 routes, including `generateStaticParams` actually pre-rendering all 8
+career paths, 20 curated skills, and all 10 seeded jobs/5 companies at build time. Real Docker
+production-image build verified in isolation (`docker build --target production`). Live
+verification against the rebuilt Docker stack: all five containers healthy, `/`, `/jobs`,
+`/jobs/[id]`, `/companies/[slug]` serving real seeded content with working cross-links.
 
 ## Phase 8 — Data Science ⬜
 

@@ -26,6 +26,7 @@ _CONTENT_TYPE_TO_FILE_TYPE = {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document": FileType.DOCX,
 }
 _EXTENSION_TO_FILE_TYPE = {".pdf": FileType.PDF, ".docx": FileType.DOCX}
+_FILE_TYPE_TO_CONTENT_TYPE = {v: k for k, v in _CONTENT_TYPE_TO_FILE_TYPE.items()}
 
 
 def _resolve_file_type(file: UploadFile) -> FileType:
@@ -55,12 +56,13 @@ async def _get_owned_resume(resume_id: uuid.UUID, user: User, db: AsyncSession) 
 
 async def _to_detail_read(resume: Resume) -> ResumeDetailRead:
     download_url = None
-    try:
-        download_url = await create_signed_url(resume.file_url)
-    except StorageError:
-        # The analysis itself doesn't depend on being able to re-sign a download link — show
-        # everything else and simply omit the link rather than failing the whole response.
-        pass
+    if resume.file_url:
+        try:
+            download_url = await create_signed_url(resume.file_url)
+        except StorageError:
+            # The analysis itself doesn't depend on being able to re-sign a download link — show
+            # everything else and simply omit the link rather than failing the whole response.
+            pass
     return ResumeDetailRead(
         id=resume.id,
         file_name=resume.file_name,
@@ -117,8 +119,12 @@ async def upload_resume(
     extension = ".pdf" if file_type == FileType.PDF else ".docx"
     storage_path = f"{settings.storage_bucket}/{user.id}/{resume.id}{extension}"
 
+    # Some clients omit Content-Type on the multipart part; fall back to what the resolved
+    # file type implies rather than storing an ambiguous "application/octet-stream".
+    content_type = file.content_type or _FILE_TYPE_TO_CONTENT_TYPE[file_type]
+
     try:
-        await upload_object(storage_path, content, file.content_type or "application/octet-stream")
+        await upload_object(storage_path, content, content_type)
     except StorageError as exc:
         await db.rollback()
         raise HTTPException(
