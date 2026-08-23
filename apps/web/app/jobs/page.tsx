@@ -77,7 +77,10 @@ export default async function JobsPage({
             </Reveal>
 
             <div className="mt-12">
-              <JobList initialJobs={jobs} initialNextCursor={nextCursor} q={q} />
+              {/* `key={q}` forces a remount on every search change — JobList seeds its job
+              list via `useState(initialJobs)`, which only runs on mount, so without this the
+              client component would keep showing the first query's results forever. */}
+              <JobList key={q} initialJobs={jobs} initialNextCursor={nextCursor} q={q} />
             </div>
           </Container>
         </Section>
