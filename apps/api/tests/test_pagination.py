@@ -13,10 +13,23 @@ def test_cursor_round_trips() -> None:
     job_id = uuid.uuid4()
 
     cursor = encode_cursor(sort_value=sort_value, id=job_id)
-    decoded_sort_value, decoded_id = decode_cursor(cursor)
+    decoded_sort_value, decoded_id, decoded_rank = decode_cursor(cursor)
 
     assert decoded_sort_value == sort_value
     assert decoded_id == job_id
+    assert decoded_rank is None
+
+
+def test_cursor_round_trips_with_rank() -> None:
+    sort_value = datetime(2026, 1, 1, tzinfo=UTC)
+    job_id = uuid.uuid4()
+
+    cursor = encode_cursor(sort_value=sort_value, id=job_id, rank=1)
+    decoded_sort_value, decoded_id, decoded_rank = decode_cursor(cursor)
+
+    assert decoded_sort_value == sort_value
+    assert decoded_id == job_id
+    assert decoded_rank == 1
 
 
 def test_decode_rejects_garbage_cursor() -> None:

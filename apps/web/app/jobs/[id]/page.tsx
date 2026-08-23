@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { MapPin } from "lucide-react";
+import { ExternalLink, MapPin } from "lucide-react";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { SmoothScroll } from "@/components/layout/smooth-scroll";
 import { Section } from "@/components/ui/section";
 import { Container } from "@/components/ui/container";
+import { ButtonLink } from "@/components/ui/button";
 import { Reveal } from "@/components/motion/reveal";
 import { BreadcrumbJsonLd } from "@/components/seo/breadcrumb-json-ld";
 import { JobPostingJsonLd } from "@/components/seo/job-posting-json-ld";
@@ -100,7 +101,20 @@ export default async function JobDetailPage({
                     {job.company.name}
                   </Link>
                 </div>
-                <TrackApplicationButton jobId={job.id} />
+                <div className="flex shrink-0 items-center gap-2">
+                  {job.apply_url ? (
+                    <ButtonLink
+                      href={job.apply_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      size="md"
+                    >
+                      Apply now
+                      <ExternalLink className="size-4" strokeWidth={1.75} />
+                    </ButtonLink>
+                  ) : null}
+                  <TrackApplicationButton jobId={job.id} />
+                </div>
               </div>
               <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
                 {job.location || job.remote ? (
@@ -111,6 +125,14 @@ export default async function JobDetailPage({
                 ) : null}
                 {job.seniority_level ? <span>{job.seniority_level}</span> : null}
                 {job.employment_type ? <span>{job.employment_type}</span> : null}
+                {!job.source ? (
+                  <span
+                    title="This posting is sample content, not a real job listing"
+                    className="rounded-full border border-border-strong px-2.5 py-0.5 text-xs text-muted-foreground"
+                  >
+                    Demo posting
+                  </span>
+                ) : null}
               </div>
             </Reveal>
 

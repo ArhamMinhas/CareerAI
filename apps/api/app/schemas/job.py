@@ -23,6 +23,8 @@ class JobRead(BaseModel):
     salary_max: float | None
     currency: str | None
     posted_at: datetime
+    source: str | None
+    apply_url: str | None
 
 
 class JobSkillRead(BaseModel):

@@ -31,6 +31,14 @@ class Job(UUIDPKMixin, TimestampMixin, Base):
     describes for `JobPosting.validThrough`: "derived from job status so expired postings stop
     appearing as active listings." Same precedent as `Skill.synonyms`/`seo_summary`/`embedding`
     — a column the ERD's own prose anticipated, added when the phase that needs it arrives.
+
+    `source`/`external_id`/`apply_url` back real job ingestion (app/services/adzuna_ingestion.py)
+    alongside the hand-written demo postings from `app/scripts/seed_jobs.py` (`source=None` for
+    those). `(source, external_id)` is uniquely constrained so re-ingesting the same upstream
+    posting updates it in place instead of duplicating it — nullable, so the many `source=None`
+    demo rows don't collide with each other under Postgres's NULLs-are-distinct semantics.
+    `apply_url` is the real external application link a job board API provides; without one
+    (demo postings), the frontend simply doesn't render an "Apply" button.
     """
 
     __tablename__ = "jobs"
@@ -41,6 +49,7 @@ class Job(UUIDPKMixin, TimestampMixin, Base):
             postgresql_using="hnsw",
             postgresql_ops={"embedding": "vector_cosine_ops"},
         ),
+        UniqueConstraint("source", "external_id", name="uq_jobs_source_external_id"),
     )
 
     company_id: Mapped[uuid.UUID] = mapped_column(
@@ -65,6 +74,9 @@ class Job(UUIDPKMixin, TimestampMixin, Base):
     posted_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+    source: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    external_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    apply_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
 
     company: Mapped["Company"] = relationship(lazy="selectin")
     required_skills: Mapped[list["JobSkill"]] = relationship(

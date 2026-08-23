@@ -21,6 +21,12 @@ export type Job = {
   salary_max: number | null;
   currency: string | null;
   posted_at: string;
+  /** `null` for hand-written demo postings (app/scripts/seed_jobs.py); a real source name
+   * (e.g. "adzuna") for jobs ingested from an actual job board. */
+  source: string | null;
+  /** The real external application link, when this job came from a real source. `null` for
+   * demo postings — the frontend simply doesn't render an "Apply" button in that case. */
+  apply_url: string | null;
 };
 
 export type JobSkill = {

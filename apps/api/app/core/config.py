@@ -49,6 +49,13 @@ class Settings(BaseSettings):
     llm_model_reasoning: str = "gpt-4o"
     embedding_model: str = "text-embedding-3-small"
 
+    # Job ingestion — Adzuna API (docs/ROADMAP.md Phase 7). Free-tier developer account at
+    # https://developer.adzuna.com; both must be set for app/scripts/ingest_adzuna_jobs.py to
+    # pull real postings. Left blank, that script fails fast with a clear message rather than
+    # silently ingesting nothing.
+    adzuna_app_id: str = ""
+    adzuna_app_key: str = ""
+
     # CORS
     cors_allowed_origins: str = "http://localhost:3000"
 
