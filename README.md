@@ -6,12 +6,15 @@ personalized learning roadmap, AI mock interviews, and career/job-market analyti
 combination of deterministic algorithms, trained ML models, retrieval (RAG), and LLM reasoning,
 never a bare "ask the LLM for everything" wrapper.
 
-**Status: Phase 4 — Resume Intelligence ✅.** Monorepo, Next.js 16 + FastAPI apps, PostgreSQL +
+**Status: Phase 6 — Skill Gap Engine ✅.** Monorepo, Next.js 16 + FastAPI apps, PostgreSQL +
 pgvector via Docker Compose, base CI, the landing page/dashboard/theme/SEO plumbing from Phase 2,
 the profile system (education, experience, projects, skills, career goals) from Phase 3, email/
-password + Google OAuth, and now real resume intelligence — async PDF/DOCX upload, NLP + LLM
-extraction, deterministic explainable scoring, and a score-breakdown UI. See
-[docs/ROADMAP.md](docs/ROADMAP.md) for the full phase-by-phase status.
+password + Google OAuth and real resume intelligence (async PDF/DOCX upload, NLP + LLM
+extraction, deterministic explainable scoring) from Phase 4, a provider-agnostic LLM/embeddings
+abstraction with `ai_conversations` cost logging from Phase 5, and now a curated career-path
+catalog with deterministic skill-gap comparison, public SEO-indexed `/careers`/`/skills/[slug]`
+pages, and an animated dashboard skill-gap view. See [docs/ROADMAP.md](docs/ROADMAP.md) for the
+full phase-by-phase status.
 
 ## Why this project exists
 
@@ -58,14 +61,16 @@ Concrete deployment targets and the Phase 16 → 17 migration path:
 career-ai/
 ├── apps/
 │   ├── web/            Next.js frontend
-│   ├── api/             FastAPI backend (layered: api/core/models/schemas/services/repositories/ai/ml/workers)
-│   └── worker/          Celery worker
+│   ├── api/             FastAPI backend (layered: api/core/models/schemas/services/ai/workers)
+│   └── worker/          Celery worker (shares the api app's codebase/image)
 ├── packages/
-│   ├── ui/               shared component library
+│   ├── ui/               README stub — component primitives live in apps/web/components/ui
+│   │                     until a second consumer app justifies extracting them (see its README)
 │   ├── types/             shared TypeScript types
 │   └── config/             shared lint/tsconfig/tailwind config
-├── ai/                   standalone AI service layer (pipelines, prompts, agents, embeddings, evaluation)
-├── ml/                   data science pipeline (data, features, models, notebooks, training)
+├── ai/                   README stub — LLM/embeddings live in apps/api/app/ai instead (see its
+│                         README for why); revisit if a real standalone consumer shows up
+├── ml/                   data science pipeline (data, features, models, notebooks, training) — Phase 8
 ├── infrastructure/       Docker + deployment config
 ├── docs/                 architecture, database, API, AI, ML, UI, SEO, security, deployment, contributing, roadmap
 ├── .env.example
