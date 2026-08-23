@@ -412,6 +412,51 @@ production-image build verified in isolation (`docker build --target production`
 verification against the rebuilt Docker stack: all five containers healthy, `/`, `/jobs`,
 `/jobs/[id]`, `/companies/[slug]` serving real seeded content with working cross-links.
 
+**Real job ingestion, search relevance, apply links, and per-job fit scoring — added after the
+initial Phase 7 ship, once real production use surfaced that `seed_jobs.py`'s static demo data
+made the whole feature feel non-functional:**
+- Replaced/augmented the hand-seeded demo postings with real listings from the **Adzuna Jobs
+  API** (`app/services/adzuna_ingestion.py`, `app/scripts/ingest_adzuna_jobs.py`) — 400 real
+  postings ingested across 8 role queries. `Job` gained `source`/`external_id`/`apply_url`
+  columns, upserted on `(source, external_id)` (nullable, so demo rows with `source=NULL` never
+  collide under Postgres's NULLs-are-distinct semantics) so re-running ingestion updates postings
+  in place. `apply_url` (Adzuna's real `redirect_url`) now renders as an "Apply now" external
+  link on both the job detail page and each search-result card; postings with no real source show
+  a "Demo posting" badge instead. Per-query error isolation (`AdzunaAPIError` caught per query,
+  session rolled back, run continues) so one transient Adzuna 503 doesn't abort the whole batch.
+- Fixed a real search-relevance bug: keyword search (`app/services/jobs.py`) previously ranked
+  purely by `posted_at`, so a query like "google" surfaced any posting that merely *mentioned*
+  Google in its description (e.g. "familiar with Google Cloud") ahead of postings actually at
+  Google — backwards for what a company-name search is for. Added `_match_rank` (company-name
+  match > title match > description-only match) as a leading `ORDER BY`/keyset column, extending
+  `encode_cursor`/`decode_cursor` (`app/core/pagination.py`) to carry an optional `rank` so
+  pagination stays correct across ranked pages, not just within one. Verified via a live `curl`
+  against both the raw API and the rendered `/jobs?q=google` page.
+- Fixed the search box not responding to Enter (`components/jobs/job-search-input.tsx`) — a plain
+  `<input>` outside a `<form>` never gets a submit event, so pressing Enter did nothing and users
+  had to wait out the 400ms debounce. Added an `onKeyDown` handler that cancels the pending
+  debounce and searches immediately.
+- Added a live, per-job "your fit" score (`GET /api/v1/jobs/{id}/match`, `JobFitScore` component)
+  reusing the same weighted formula as the batch `/dashboard/matches` view, refactored into a
+  shared `_load_match_context` helper (`app/services/job_matching.py`) — the batch view's
+  candidate pool is capped to the 50 nearest-by-embedding postings, so a job found via keyword
+  search can fall outside it; this computes an un-persisted score for exactly the one job being
+  viewed instead.
+- Fixed `deploy.yml` auto-firing a real GitHub Deployment on every push to master via its
+  `workflow_run` trigger, then always failing at the smoke-test step since no staging environment
+  is actually deployed yet — showed up as a permanent red "failed" deployment on the repo
+  homepage. Removed the automatic trigger; the job now only runs on explicit `workflow_dispatch`,
+  matching its actual status as inert Phase 16 scaffolding.
+- Fixed a `ruff format` drift in `tests/test_adzuna_ingestion.py` that broke CI's `api (lint,
+  typecheck, test)` job (format-check step, not lint) on the commit that introduced it.
+
+**Verified:** ruff, `ruff format --check`, and mypy (87 files) all clean; pytest 132 passed
+(including 3 new tests for the live per-job fit endpoint and 1 regression test for search-ranking
+company-name-first ordering). Frontend `tsc --noEmit` and ESLint clean on every changed file.
+Live-verified against the running Docker stack: the raw API and the rendered `/jobs?q=google`
+page both show the two real Google postings ranked first; `/jobs/[id]` renders the Apply link,
+Demo-posting badge, and (when signed in) the fit-score card correctly for a real Adzuna posting.
+
 ## Phase 8 — Data Science ⬜
 
 `ml/` dataset pipeline, EDA notebooks, feature engineering, skill-demand analysis, clustering,

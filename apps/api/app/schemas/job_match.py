@@ -39,3 +39,13 @@ class JobMatchRead(BaseModel):
     match_score: float
     score_breakdown: JobMatchBreakdown
     explanation: str
+
+
+class JobFitRead(BaseModel):
+    """`GET /api/v1/jobs/{id}/match` — a live per-job fit score for a job a user is looking at
+    directly (search results, job detail page), not persisted as a `JobMatch` row the way the
+    batch `/matches` dashboard is."""
+
+    match_score: float
+    score_breakdown: JobMatchBreakdown
+    explanation: str

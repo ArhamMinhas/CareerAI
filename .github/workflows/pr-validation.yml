@@ -128,7 +128,7 @@ jobs:
               pull_number: context.issue.number,
             });
             
-            const MAX_SIZE = 500000; // 500KB
+            const MAX_SIZE = 500000;
             const largeFiles = files.filter(f => f.additions + f.deletions > MAX_SIZE);
             
             if (largeFiles.length > 0) {
@@ -145,7 +145,6 @@ jobs:
               pull_number: context.issue.number,
             });
             
-            // This is informational; actual branch protection rules are configured in GitHub UI
             const reviews = pullRequest.review_comments;
             console.log(`Current reviews: ${pullRequest.requested_reviewers.length} reviewers requested`);
 
@@ -155,13 +154,11 @@ jobs:
     if: github.event.action == 'opened' || github.event.action == 'synchronize'
     steps:
       - name: Check required status checks
-        uses: actions/github-script@v7
-        with:
-          script: |
-            console.log('ℹ️  This PR requires passing checks before merge:');
-            console.log('- CI (web, api, security)');
-            console.log('- Compatibility matrix (Python 3.11, 3.12; Node 20, 22)');
-            console.log('- All status checks must be green');
+        run: |
+          echo "ℹ️  This PR requires passing checks before merge:"
+          echo "- CI (web, api, security)"
+          echo "- Compatibility matrix (Python 3.12; Node 20, 22)"
+          echo "- All status checks must be green"
 
   dependabot-auto-merge:
     name: Auto-merge Dependabot PRs
@@ -175,18 +172,29 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            // Automatically merge minor/patch updates
-            // Major version updates require manual review
             const title = context.payload.pull_request.title;
-            
-            if (title.includes('patch') || title.includes('minor')) {
-              github.rest.pulls.merge({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: context.issue.number,
-                merge_method: 'squash',
-              });
-              console.log('✓ Auto-merged Dependabot patch/minor update');
+            const pullRequestId = context.payload.pull_request.node_id;
+
+            if (title.includes('bump') && (title.includes('patch') || title.includes('minor'))) {
+              try {
+                // `pulls.merge` merges immediately and unconditionally — it does not wait for
+                // this same pull_request event's other CI workflows to finish, so it could land
+                // a broken dependency bump before CI even completes. `enablePullRequestAutoMerge`
+                // is GitHub's real auto-merge: it queues the merge and only completes it once
+                // required status checks pass (requires "Allow auto-merge" enabled in repo
+                // settings, and branch protection with required checks to actually hold off).
+                await github.graphql(
+                  `mutation($pullRequestId: ID!) {
+                    enablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId, mergeMethod: SQUASH }) {
+                      pullRequest { autoMergeRequest { enabledAt } }
+                    }
+                  }`,
+                  { pullRequestId }
+                );
+                console.log('✓ Auto-merge enabled for Dependabot patch/minor update (merges once checks pass)');
+              } catch (error) {
+                console.log(`⚠️  Could not enable auto-merge: ${error.message}`);
+              }
             } else {
               console.log('⚠️  Major version update requires manual review');
             }

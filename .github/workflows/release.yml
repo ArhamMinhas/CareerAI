@@ -48,8 +48,6 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            // Find the most recent CI run for this exact commit, not this workflow's own
-            // (still in-progress, so conclusion is never available) run.
             const { data } = await github.rest.actions.listWorkflowRunsForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -76,9 +74,13 @@ jobs:
         id: changelog
         run: |
           VERSION="${{ github.event.inputs.version }}"
-          CHANGELOG=$(git log $(git describe --tags --abbrev=0)..HEAD --oneline --pretty=format:"%h %s")
-          
-          # Create release notes from commits
+          # This repo has no tags yet as of its first release — `git describe --tags` errors out
+          # with nothing to fall back on, which would fail this step (and the whole workflow)
+          # before a single release has ever been cut. Fall back to the full history instead.
+          PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || true)
+          RANGE="${PREV_TAG:+$PREV_TAG..}HEAD"
+          CHANGELOG=$(git log "$RANGE" --oneline --pretty=format:"%h %s")
+
           echo "## What's Changed" > release-notes.md
           echo "" >> release-notes.md
           echo "$CHANGELOG" | while read line; do
@@ -116,9 +118,6 @@ jobs:
     name: Tag and Push Release Images
     runs-on: ubuntu-latest
     needs: create-release
-    if: success()
-    # `secrets` isn't a recognized named-value inside `if:` — referencing it there rejects the
-    # whole workflow file at parse time. See ci.yml's build-images job for the same fix.
     env:
       HAS_DOCKER_CREDS: ${{ secrets.DOCKER_USERNAME != '' }}
     steps:
@@ -145,11 +144,16 @@ jobs:
         run: |
           REGISTRY="${{ secrets.DOCKER_REGISTRY }}"
           VERSION="${{ steps.version.outputs.tag }}"
-          
-          docker pull ${REGISTRY}/careerai-web:main
-          docker tag ${REGISTRY}/careerai-web:main ${REGISTRY}/careerai-web:${VERSION}
-          docker tag ${REGISTRY}/careerai-web:main ${REGISTRY}/careerai-web:latest
-          
+          # ci.yml's `docker/metadata-action` tags pushed images with `type=ref,event=branch` —
+          # the actual branch name, not a hardcoded "main". This repo's default branch is
+          # "master" (github.event.repository.default_branch), so a literal `:main` here would
+          # never match a real pushed tag.
+          SOURCE_TAG="${{ github.event.repository.default_branch }}"
+
+          docker pull ${REGISTRY}/careerai-web:${SOURCE_TAG}
+          docker tag ${REGISTRY}/careerai-web:${SOURCE_TAG} ${REGISTRY}/careerai-web:${VERSION}
+          docker tag ${REGISTRY}/careerai-web:${SOURCE_TAG} ${REGISTRY}/careerai-web:latest
+
           docker push ${REGISTRY}/careerai-web:${VERSION}
           docker push ${REGISTRY}/careerai-web:latest
 
@@ -158,11 +162,12 @@ jobs:
         run: |
           REGISTRY="${{ secrets.DOCKER_REGISTRY }}"
           VERSION="${{ steps.version.outputs.tag }}"
-          
-          docker pull ${REGISTRY}/careerai-api:main
-          docker tag ${REGISTRY}/careerai-api:main ${REGISTRY}/careerai-api:${VERSION}
-          docker tag ${REGISTRY}/careerai-api:main ${REGISTRY}/careerai-api:latest
-          
+          SOURCE_TAG="${{ github.event.repository.default_branch }}"
+
+          docker pull ${REGISTRY}/careerai-api:${SOURCE_TAG}
+          docker tag ${REGISTRY}/careerai-api:${SOURCE_TAG} ${REGISTRY}/careerai-api:${VERSION}
+          docker tag ${REGISTRY}/careerai-api:${SOURCE_TAG} ${REGISTRY}/careerai-api:latest
+
           docker push ${REGISTRY}/careerai-api:${VERSION}
           docker push ${REGISTRY}/careerai-api:latest
 
@@ -171,11 +176,12 @@ jobs:
         run: |
           REGISTRY="${{ secrets.DOCKER_REGISTRY }}"
           VERSION="${{ steps.version.outputs.tag }}"
-          
-          docker pull ${REGISTRY}/careerai-worker:main
-          docker tag ${REGISTRY}/careerai-worker:main ${REGISTRY}/careerai-worker:${VERSION}
-          docker tag ${REGISTRY}/careerai-worker:main ${REGISTRY}/careerai-worker:latest
-          
+          SOURCE_TAG="${{ github.event.repository.default_branch }}"
+
+          docker pull ${REGISTRY}/careerai-worker:${SOURCE_TAG}
+          docker tag ${REGISTRY}/careerai-worker:${SOURCE_TAG} ${REGISTRY}/careerai-worker:${VERSION}
+          docker tag ${REGISTRY}/careerai-worker:${SOURCE_TAG} ${REGISTRY}/careerai-worker:latest
+
           docker push ${REGISTRY}/careerai-worker:${VERSION}
           docker push ${REGISTRY}/careerai-worker:latest
 
@@ -184,7 +190,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: [create-release, tag-images]
     if: always()
-    # `secrets` isn't a recognized named-value inside `if:` — see ci.yml's build-images job.
     env:
       HAS_SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL != '' }}
     steps:
@@ -206,7 +211,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "*Status:* ${{ job.status }}\n*Author:* ${{ github.actor }}\n*Timestamp:* <!date^${{ github.event.head_commit.timestamp }}^{date_short_pretty} {time_secs}|${{ github.event.head_commit.timestamp }}>"
+                    "text": "*Status:* ${{ job.status }}\n*Author:* ${{ github.actor }}"
                   }
                 },
                 {
@@ -227,4 +232,4 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
-        if: always() && env.HAS_SLACK_WEBHOOK == 'true'
+        if: env.HAS_SLACK_WEBHOOK == 'true'

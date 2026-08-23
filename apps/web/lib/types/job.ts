@@ -67,6 +67,13 @@ export type JobMatch = {
   explanation: string;
 };
 
+/** `GET /api/v1/jobs/{id}/match` — a live per-job fit score, not persisted like `JobMatch`. */
+export type JobFit = {
+  match_score: number;
+  score_breakdown: JobMatchBreakdown;
+  explanation: string;
+};
+
 export type ApplicationStatus = "saved" | "applied" | "interviewing" | "offer" | "rejected";
 
 export type Application = {

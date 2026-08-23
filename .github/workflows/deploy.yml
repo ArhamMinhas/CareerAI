@@ -49,13 +49,9 @@ jobs:
           echo "ref=$(echo ${{ github.ref }} | sed 's/refs\/heads\///')" >> $GITHUB_OUTPUT
 
       - name: Deploy web to Vercel
-        uses: actions/github-script@v7
-        with:
-          script: |
-            console.log('Deploying web to Vercel staging...');
-            // Use Vercel's deploy webhook or CLI
-            // Example: call Vercel API to trigger deployment
-            // For now, this is a placeholder — configure your Vercel deployment token and project ID
+        run: |
+          echo "Deploying web to Vercel staging..."
+          echo "Configure Vercel deployment token and project ID to enable auto-deployment"
 
       - name: Deploy api/worker to Railway/ECS
         env:
@@ -64,16 +60,12 @@ jobs:
           API_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_API }}:${{ steps.tags.outputs.sha }}
           WORKER_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_WORKER }}:${{ steps.tags.outputs.sha }}
         run: |
-          # Example for Railway.app deployment:
-          # railway up --service api --image ${{ env.API_IMAGE }}
-          # railway up --service worker --image ${{ env.WORKER_IMAGE }}
           echo "Deploying to staging..."
-          echo "API Image: ${{ env.API_IMAGE }}"
-          echo "Worker Image: ${{ env.WORKER_IMAGE }}"
+          echo "API Image: $API_IMAGE"
+          echo "Worker Image: $WORKER_IMAGE"
 
       - name: Run smoke tests
         run: |
-          # Poll the staging API until it's healthy
           max_attempts=30
           attempt=0
           until [ $attempt -ge $max_attempts ] || curl -f https://staging.careerai.app/api/v1/health; do
@@ -111,12 +103,9 @@ jobs:
           echo "ref=$(echo ${{ github.ref }} | sed 's/refs\/heads\///')" >> $GITHUB_OUTPUT
 
       - name: Deploy web to Vercel (production)
-        uses: actions/github-script@v7
-        with:
-          script: |
-            console.log('Deploying web to Vercel production...');
-            // Use Vercel's production deploy webhook
-            // Example: call Vercel API with production flag
+        run: |
+          echo "Deploying web to Vercel production..."
+          echo "Configure Vercel deployment token and project ID to enable auto-deployment"
 
       - name: Deploy api/worker to Railway/ECS (production)
         env:
@@ -126,12 +115,11 @@ jobs:
           WORKER_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_WORKER }}:${{ steps.tags.outputs.sha }}
         run: |
           echo "Deploying to production..."
-          echo "API Image: ${{ env.API_IMAGE }}"
-          echo "Worker Image: ${{ env.WORKER_IMAGE }}"
+          echo "API Image: $API_IMAGE"
+          echo "Worker Image: $WORKER_IMAGE"
 
       - name: Run production smoke tests
         run: |
-          # Poll the production API until it's healthy
           max_attempts=30
           attempt=0
           until [ $attempt -ge $max_attempts ] || curl -f https://careerai.app/api/v1/health; do
@@ -145,12 +133,11 @@ jobs:
           fi
           echo "Production deployment is healthy"
 
-      - name: Notify deployment
+      - name: Notify deployment status
         if: always()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            // This job's trigger (workflow_dispatch) has no associated pull request, so
-            // there's no issue to comment on here — just log the outcome.
-            const status = context.job.status === 'success' ? '✅ Success' : '❌ Failed';
-            console.log(`Production deployment ${status}`);
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "✅ Production deployment succeeded"
+          else
+            echo "❌ Production deployment failed"
+          fi

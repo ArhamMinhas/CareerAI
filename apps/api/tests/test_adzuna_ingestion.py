@@ -47,7 +47,9 @@ async def test_ingest_adzuna_jobs_creates_company_and_job(
 
     monkeypatch.setattr(adzuna_ingestion, "fetch_adzuna_page", fake_fetch)
     monkeypatch.setattr(
-        adzuna_ingestion, "embed_text", lambda text: _fake_embedding()  # type: ignore[arg-type]
+        adzuna_ingestion,
+        "embed_text",
+        lambda text: _fake_embedding(),  # type: ignore[arg-type]
     )
 
     async with AsyncSessionLocal() as db:
@@ -89,7 +91,9 @@ async def test_ingest_adzuna_jobs_upserts_on_rerun(monkeypatch: pytest.MonkeyPat
         return [_fake_result(job_id=job_id, title="Updated Title", company=company_name)]
 
     monkeypatch.setattr(
-        adzuna_ingestion, "embed_text", lambda text: _fake_embedding()  # type: ignore[arg-type]
+        adzuna_ingestion,
+        "embed_text",
+        lambda text: _fake_embedding(),  # type: ignore[arg-type]
     )
 
     async with AsyncSessionLocal() as db:

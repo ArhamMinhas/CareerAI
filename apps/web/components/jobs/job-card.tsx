@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight, MapPin } from "lucide-react";
+import { ArrowUpRight, ExternalLink, MapPin } from "lucide-react";
 import { Reveal } from "@/components/motion/reveal";
 import { cardHoverMotion, cn } from "@/lib/utils";
 import type { Job } from "@/lib/types/job";
@@ -21,14 +21,22 @@ export function JobCard({ job, delay = 0 }: { job: Job; delay?: number }) {
   const salary = formatSalary(job);
   return (
     <Reveal delay={delay} hoverLift>
-      <Link
-        href={`/jobs/${job.id}`}
+      {/* Stretched-link pattern rather than nesting an <a> (the Apply link) inside another <a>
+      (which browsers silently mangle): the card itself is a plain div, the title click-through
+      is an absolutely-positioned Link covering the whole card, and Apply sits above it at a
+      higher stacking order so it stays independently clickable. */}
+      <div
         className={cn(
           cardHoverMotion,
-          "group flex h-full flex-col justify-between gap-5 rounded-xl border border-border bg-surface p-6"
+          "group relative flex h-full flex-col justify-between gap-5 rounded-xl border border-border bg-surface p-6"
         )}
       >
-        <div>
+        <Link
+          href={`/jobs/${job.id}`}
+          className="absolute inset-0 z-0 rounded-xl"
+          aria-label={`${job.title} at ${job.company.name}`}
+        />
+        <div className="relative z-1 pointer-events-none">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold tracking-tight text-foreground">
@@ -52,12 +60,27 @@ export function JobCard({ job, delay = 0 }: { job: Job; delay?: number }) {
             {job.employment_type ? <span>{job.employment_type}</span> : null}
           </div>
         </div>
-        {salary ? (
-          <span className="w-fit rounded-full border border-border-strong px-2.5 py-1 text-xs font-medium text-foreground">
-            {salary}
-          </span>
-        ) : null}
-      </Link>
+        <div className="relative z-1 flex items-center justify-between gap-3">
+          {salary ? (
+            <span className="w-fit rounded-full border border-border-strong px-2.5 py-1 text-xs font-medium text-foreground">
+              {salary}
+            </span>
+          ) : (
+            <span />
+          )}
+          {job.apply_url ? (
+            <a
+              href={job.apply_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="pointer-events-auto inline-flex items-center gap-1 text-xs font-medium text-primary transition-colors hover:underline"
+            >
+              Apply
+              <ExternalLink className="size-3.5" strokeWidth={1.75} />
+            </a>
+          ) : null}
+        </div>
+      </div>
     </Reveal>
   );
 }

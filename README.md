@@ -6,15 +6,18 @@ personalized learning roadmap, AI mock interviews, and career/job-market analyti
 combination of deterministic algorithms, trained ML models, retrieval (RAG), and LLM reasoning,
 never a bare "ask the LLM for everything" wrapper.
 
-**Status: Phase 6 — Skill Gap Engine ✅.** Monorepo, Next.js 16 + FastAPI apps, PostgreSQL +
-pgvector via Docker Compose, base CI, the landing page/dashboard/theme/SEO plumbing from Phase 2,
+**Status: Phase 7 — Job Recommendation ✅.** Monorepo, Next.js 15 + FastAPI apps, PostgreSQL +
+pgvector via Docker Compose, CI, the landing page/dashboard/theme/SEO plumbing from Phase 2,
 the profile system (education, experience, projects, skills, career goals) from Phase 3, email/
 password + Google OAuth and real resume intelligence (async PDF/DOCX upload, NLP + LLM
 extraction, deterministic explainable scoring) from Phase 4, a provider-agnostic LLM/embeddings
-abstraction with `ai_conversations` cost logging from Phase 5, and now a curated career-path
-catalog with deterministic skill-gap comparison, public SEO-indexed `/careers`/`/skills/[slug]`
-pages, and an animated dashboard skill-gap view. See [docs/ROADMAP.md](docs/ROADMAP.md) for the
-full phase-by-phase status.
+abstraction with `ai_conversations` cost logging from Phase 5, a curated career-path catalog with
+deterministic skill-gap comparison from Phase 6, and now real job postings ingested from the
+Adzuna Jobs API (with real external apply links), keyword-then-semantic job search with
+relevance-ranked results, the hybrid `job_match_score` engine (`/dashboard/matches`) plus a
+live per-job fit score on individual postings, and public SEO-indexed `/jobs`, `/jobs/[id]`,
+`/companies/[slug]` pages. See [docs/ROADMAP.md](docs/ROADMAP.md) for the full phase-by-phase
+status.
 
 ## Why this project exists
 

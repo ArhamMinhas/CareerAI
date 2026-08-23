@@ -12,6 +12,7 @@ import { Reveal } from "@/components/motion/reveal";
 import { BreadcrumbJsonLd } from "@/components/seo/breadcrumb-json-ld";
 import { JobPostingJsonLd } from "@/components/seo/job-posting-json-ld";
 import { TrackApplicationButton } from "@/components/jobs/track-application-button";
+import { JobFitScore } from "@/components/jobs/job-fit-score";
 import { fetchPublic, fetchPublicAllPages, PublicApiError } from "@/lib/public-api";
 import { cardHoverMotion, cn } from "@/lib/utils";
 import type { Job, JobDetail } from "@/lib/types/job";
@@ -143,7 +144,8 @@ export default async function JobDetailPage({
                 </div>
               </Reveal>
 
-              <Reveal delay={0.1} className="lg:sticky lg:top-28 lg:self-start">
+              <Reveal delay={0.1} className="flex flex-col gap-6 lg:sticky lg:top-28 lg:self-start">
+                <JobFitScore jobId={job.id} />
                 <div
                   className={cn(
                     cardHoverMotion,

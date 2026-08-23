@@ -322,14 +322,39 @@ async def _candidate_jobs(
     return list(result.scalars().all())
 
 
-async def refresh_job_matches(
-    db: AsyncSession, *, user: User, candidate_pool_size: int = CANDIDATE_POOL_SIZE
-) -> list[JobMatch]:
-    """`POST /api/v1/jobs/match` — recomputes this user's ranked job matches against the current
-    candidate pool. Replaces any previously-stored matches for these candidates, same
-    cached/recompute-on-demand convention as `compute_and_store_skill_gaps`
-    (app/services/skill_gap.py); does not commit, callers own the transaction.
-    """
+class _MatchContext:
+    """The user-side inputs `_compute_breakdown` needs — everything about the user, independent
+    of which job(s) it's being scored against. Built once and reused across every job in a
+    batch (`refresh_job_matches`) or passed through for a single ad-hoc job (`compute_job_fit`)."""
+
+    __slots__ = (
+        "profile",
+        "user_skill_ids",
+        "experiences",
+        "educations",
+        "career_goal",
+        "resume_embedding",
+    )
+
+    def __init__(
+        self,
+        *,
+        profile: Profile | None,
+        user_skill_ids: set[uuid.UUID],
+        experiences: list[Experience],
+        educations: list[Education],
+        career_goal: CareerGoal | None,
+        resume_embedding: list[float] | None,
+    ) -> None:
+        self.profile = profile
+        self.user_skill_ids = user_skill_ids
+        self.experiences = experiences
+        self.educations = educations
+        self.career_goal = career_goal
+        self.resume_embedding = resume_embedding
+
+
+async def _load_match_context(db: AsyncSession, user: User) -> _MatchContext:
     profile_result = await db.execute(select(Profile).where(Profile.user_id == user.id))
     profile = profile_result.scalar_one_or_none()
 
@@ -364,18 +389,58 @@ async def refresh_job_matches(
     career_goal = goal_result.scalars().first()
 
     resume_embedding = await _latest_resume_embedding(db, user.id)
-    jobs = await _candidate_jobs(db, resume_embedding, limit=candidate_pool_size)
+    return _MatchContext(
+        profile=profile,
+        user_skill_ids=user_skill_ids,
+        experiences=experiences,
+        educations=educations,
+        career_goal=career_goal,
+        resume_embedding=resume_embedding,
+    )
+
+
+async def compute_job_fit(
+    db: AsyncSession, *, user: User, job: Job
+) -> tuple[float, JobMatchBreakdown, str]:
+    """`GET /api/v1/jobs/{id}/match` — a live, un-persisted fit computation for one specific job,
+    e.g. a job a user found via search that may fall outside `refresh_job_matches`'s top-N
+    candidate pool. Same scoring formula as the batch path, just for a single job and without
+    writing a `JobMatch` row."""
+    context = await _load_match_context(db, user)
+    breakdown = _compute_breakdown(
+        job=job,
+        profile=context.profile,
+        user_skill_ids=context.user_skill_ids,
+        experiences=context.experiences,
+        educations=context.educations,
+        career_goal=context.career_goal,
+        resume_embedding=context.resume_embedding,
+    )
+    score = _overall_score(breakdown)
+    return score, breakdown, _explanation(job, breakdown, score)
+
+
+async def refresh_job_matches(
+    db: AsyncSession, *, user: User, candidate_pool_size: int = CANDIDATE_POOL_SIZE
+) -> list[JobMatch]:
+    """`POST /api/v1/jobs/match` — recomputes this user's ranked job matches against the current
+    candidate pool. Replaces any previously-stored matches for these candidates, same
+    cached/recompute-on-demand convention as `compute_and_store_skill_gaps`
+    (app/services/skill_gap.py); does not commit, callers own the transaction.
+    """
+    context = await _load_match_context(db, user)
+    jobs = await _candidate_jobs(db, context.resume_embedding, limit=candidate_pool_size)
 
     matches: list[JobMatch] = []
     for job in jobs:
         breakdown = _compute_breakdown(
             job=job,
-            profile=profile,
-            user_skill_ids=user_skill_ids,
-            experiences=experiences,
-            educations=educations,
-            career_goal=career_goal,
-            resume_embedding=resume_embedding,
+            profile=context.profile,
+            user_skill_ids=context.user_skill_ids,
+            experiences=context.experiences,
+            educations=context.educations,
+            career_goal=context.career_goal,
+            resume_embedding=context.resume_embedding,
         )
         score = _overall_score(breakdown)
         match = JobMatch(

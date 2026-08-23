@@ -167,6 +167,8 @@ jobs:
       # `push:` correctly forced to false — so each build/push step is skipped outright below,
       # not just the login step.
       HAS_DOCKER_CREDS: ${{ secrets.DOCKER_USERNAME != '' }}
+      # Prefix to use for image names when a registry is configured. Empty string otherwise
+      REGISTRY_PREFIX: ${{ secrets.DOCKER_REGISTRY != '' && format('{0}/', secrets.DOCKER_REGISTRY) || '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -182,6 +184,7 @@ jobs:
 
       - name: Extract metadata (web)
         id: meta-web
+        if: env.HAS_DOCKER_CREDS == 'true'
         uses: docker/metadata-action@v5
         with:
           images: |
@@ -206,6 +209,7 @@ jobs:
 
       - name: Extract metadata (api)
         id: meta-api
+        if: env.HAS_DOCKER_CREDS == 'true'
         uses: docker/metadata-action@v5
         with:
           images: |
@@ -231,6 +235,7 @@ jobs:
 
       - name: Extract metadata (worker)
         id: meta-worker
+        if: env.HAS_DOCKER_CREDS == 'true'
         uses: docker/metadata-action@v5
         with:
           images: |

@@ -44,3 +44,27 @@ async def test_get_job_matches_reads_stored_results(
 async def test_job_match_endpoints_require_auth(client: AsyncClient) -> None:
     assert (await client.get("/api/v1/matches")).status_code == 401
     assert (await client.post("/api/v1/jobs/match")).status_code == 401
+
+
+async def test_get_job_fit_computes_live_score_for_one_job(
+    authed_client: AsyncClient, seeded_job: Job
+) -> None:
+    response = await authed_client.get(f"/api/v1/jobs/{seeded_job.id}/match")
+    assert response.status_code == 200
+    fit = response.json()["data"]
+    assert 0 <= fit["match_score"] <= 100
+    assert fit["explanation"]
+    breakdown = fit["score_breakdown"]
+    assert round(sum(c["weight"] for c in breakdown.values()), 6) == 1.0
+
+
+async def test_get_job_fit_requires_auth(client: AsyncClient, seeded_job: Job) -> None:
+    response = await client.get(f"/api/v1/jobs/{seeded_job.id}/match")
+    assert response.status_code == 401
+
+
+async def test_get_job_fit_404s_for_unknown_job(authed_client: AsyncClient) -> None:
+    import uuid
+
+    response = await authed_client.get(f"/api/v1/jobs/{uuid.uuid4()}/match")
+    assert response.status_code == 404
