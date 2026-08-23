@@ -18,9 +18,16 @@ export const revalidate = 3600;
 
 export async function generateStaticParams(): Promise<{ slug: string }[]> {
   // Pre-renders every career path at build time (docs/SEO.md §5's "SSG + ISR" — the catalog
-  // is small and curated, so there's no reason to defer this to first-request SSR).
-  const careerPaths = await fetchPublic<CareerPath[]>("/api/v1/careers", revalidate);
-  return careerPaths.map((careerPath) => ({ slug: careerPath.slug }));
+  // is small and curated, so there's no reason to defer this to first-request SSR). Falls back
+  // to an empty list if the API isn't reachable during the build (e.g. CI's frontend-only job
+  // never runs a backend) — `dynamicParams` defaults to true, so un-prerendered slugs still
+  // render correctly on first request instead of failing the whole build.
+  try {
+    const careerPaths = await fetchPublic<CareerPath[]>("/api/v1/careers", revalidate);
+    return careerPaths.map((careerPath) => ({ slug: careerPath.slug }));
+  } catch {
+    return [];
+  }
 }
 
 async function getCareerPath(slug: string): Promise<CareerPathDetail | null> {

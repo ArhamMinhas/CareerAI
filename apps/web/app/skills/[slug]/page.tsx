@@ -20,9 +20,16 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 export async function generateStaticParams(): Promise<{ slug: string }[]> {
   // Pre-renders only the curated skills (docs/SEO.md §5's "SSG + ISR") — most skills in the
   // taxonomy have no `seo_summary` and still resolve at request time, they're just not worth
-  // pre-building at scale (see `GET /api/v1/skills/curated`'s docstring).
-  const curatedSkills = await fetchPublic<Skill[]>("/api/v1/skills/curated", revalidate);
-  return curatedSkills.map((skill) => ({ slug: skill.slug }));
+  // pre-building at scale (see `GET /api/v1/skills/curated`'s docstring). Falls back to an
+  // empty list if the API isn't reachable during the build (e.g. CI's frontend-only job never
+  // runs a backend) — `dynamicParams` defaults to true, so un-prerendered slugs still render
+  // correctly on first request instead of failing the whole build.
+  try {
+    const curatedSkills = await fetchPublic<Skill[]>("/api/v1/skills/curated", revalidate);
+    return curatedSkills.map((skill) => ({ slug: skill.slug }));
+  } catch {
+    return [];
+  }
 }
 
 async function getSkill(slug: string): Promise<SkillDetail | null> {

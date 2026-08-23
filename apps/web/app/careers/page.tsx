@@ -6,7 +6,7 @@ import { Section } from "@/components/ui/section";
 import { Container } from "@/components/ui/container";
 import { Reveal } from "@/components/motion/reveal";
 import { CareerCard } from "@/components/careers/career-card";
-import { fetchPublic } from "@/lib/public-api";
+import { fetchPublic, PublicApiError } from "@/lib/public-api";
 import type { CareerPath } from "@/lib/types/career-path";
 
 // ISR — this content changes far less often than jobs (docs/SEO.md §5), so a long revalidate
@@ -24,8 +24,20 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image", title, description },
 };
 
+async function getCareerPaths(): Promise<CareerPath[]> {
+  try {
+    return await fetchPublic<CareerPath[]>("/api/v1/careers", revalidate);
+  } catch (err) {
+    // Degrade to an empty list rather than failing the whole page/build — the API being
+    // briefly unreachable (e.g. a CI build step with no live backend) shouldn't take this
+    // page down; ISR revalidates it for real once the API is back.
+    if (err instanceof PublicApiError || err instanceof TypeError) return [];
+    throw err;
+  }
+}
+
 export default async function CareersPage() {
-  const careerPaths = await fetchPublic<CareerPath[]>("/api/v1/careers", revalidate);
+  const careerPaths = await getCareerPaths();
 
   return (
     <SmoothScroll>
