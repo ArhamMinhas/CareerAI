@@ -23,7 +23,7 @@ const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/dashboard/profile", label: "Profile", icon: User },
   { href: "/dashboard/resume", label: "Resume", icon: FileText },
-  { href: "/skills", label: "Skills", icon: Target },
+  { href: "/dashboard/skill-gap", label: "Skill Gap", icon: Target },
   { href: "/career", label: "Career", icon: Compass },
   { href: "/jobs", label: "Jobs", icon: Briefcase },
   { href: "/matches", label: "Matches", icon: Sparkles },

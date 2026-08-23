@@ -218,12 +218,99 @@ conversation/embedding persistence); `alembic check` reports no drift; a real re
 through the rebuilt Docker stack produced a real score plus a real `ai_conversations` row and a
 real `embeddings` row.
 
-## Phase 6 — Skill Gap Engine ⬜
+## Phase 6 — Skill Gap Engine ✅
 
-Skill taxonomy, career skill profiles (`career_paths` table), gap comparison, recommendations,
-visualizations. Also ships the public, SEO-indexable `/careers/[slug]` and `/skills/[slug]`
-pages ([SEO.md §1](./SEO.md#1-what-gets-indexed-vs-what-doesnt)) — these render the same curated
-role/skill data the gap engine uses internally, so the content is authored once.
+Skill taxonomy extended (`skills.synonyms`/`seo_summary`/`embedding`), curated career-path
+catalog (`career_paths`/`career_path_skills`), deterministic gap comparison, recommendations,
+and a new dashboard visualization. Ships the public, SEO-indexable `/careers`, `/careers/[slug]`,
+and `/skills/[slug]` pages ([SEO.md §1](./SEO.md#1-what-gets-indexed-vs-what-doesnt)) — these
+render the same curated role/skill data the gap engine uses internally, so the content is
+authored once.
+
+**Backend:** `career_paths`/`career_path_skills`/`skill_gaps` tables plus `skills.synonyms`/
+`seo_summary`/`embedding` (Alembic migration, HNSW cosine indexes on both new embedding
+columns, matching Phase 5's `embeddings` table pattern). `app/services/skill_gap.py` is pure
+deterministic set comparison — no LLM call (docs/AI_ARCHITECTURE.md §1) — diffing a user's
+`user_skills` against a resolved career path's required-skill profile; priority is
+`career_path_skills.weight` (doubled if `is_core`, doubled again for missing vs. weak) since
+`skill_demand` doesn't exist until Phase 7/8 (see docs/ML_PIPELINE.md §2.3's implementation
+note). `GET /skills/gaps` auto-computes and caches on first read (mirrors resume analysis);
+`POST /skills/gaps/refresh` forces recomputation after a profile change. `GET /careers`,
+`GET /careers/{slug}`, `GET /skills/{id_or_slug}`, and `GET /skills/curated` are public,
+unauthenticated routes backing the SSG pages and sitemap. `app/scripts/seed_career_paths.py`
+seeds 8 real, curated career paths (AI Engineer, ML Engineer, Data Scientist, Backend/Frontend/
+Full-Stack Engineer, DevOps Engineer, Product Manager) and backfills `seo_summary`/`embedding`
+for 20 common skills, using Phase 5's `embed_text()` for real OpenAI embeddings — idempotent,
+re-runnable, not part of CI (it makes real paid API calls; CI's tests are fully self-contained
+fixtures, never dependent on seeded data).
+
+**Frontend:** `/careers` (index) and `/careers/[slug]` (detail: description, required-skill
+list sorted by weight with core badges, related career paths via embedding similarity) —
+true SSG via `generateStaticParams`, ISR revalidate 1h. `/skills/[slug]` (seo_summary,
+synonyms, related skills, cross-links to career paths that require it) — same SSG/ISR
+strategy. `sitemap.ts` now includes both; `BreadcrumbList` (careers, skills) and `DefinedTerm`
+(skills) JSON-LD per docs/SEO.md §2.4 — `Organization` JSON-LD was hoisted from the landing
+page into the root layout so it's genuinely site-wide as that section always specified, not
+landing-page-only. New `/dashboard/skill-gap` view: target-role selector, animated summary
+tiles/recommended-next list/full breakdown (Motion, staggered reveal, color-coded by gap
+level), plus a real `SkillGapCard` on the dashboard home replacing the old static placeholder.
+
+**Real bug found and fixed during live verification** (present since Phase 1, first surfaced
+by Phase 6's dashboard adding more concurrent first-load API calls): `get_current_user`
+(app/core/security.py) selected-then-inserted a user's local `users` row on their very first
+authenticated request with no protection against concurrent duplicate-insert races. A fresh
+sign-in's dashboard fires several `apiFetch` calls in parallel (each on its own DB session),
+and more than one could reach the "row doesn't exist yet" branch before either committed — the
+loser crashed with a duplicate-key `IntegrityError`, which the browser reported as a
+misleading "blocked by CORS policy" error (Chrome misreports a response that never completed
+as a CORS failure) rather than a clear 500. Fixed with the same SAVEPOINT-and-retry pattern
+already used for `get_or_create_skill` (app/services/skill_taxonomy.py) — a regression test
+reproduces the concurrent race directly.
+
+**Two more real bugs found via a self-review pass** (`/code-review`) after the above,
+before this was considered done:
+- `compute_and_store_skill_gaps` (app/services/skill_gap.py) had the *exact same* class of
+  race as `get_current_user` above, in its own delete-then-insert of `skill_gaps` rows — two
+  concurrent computations for the same user+career-path (GET's auto-compute racing a POST
+  `/refresh`, say) could both see "no rows yet" and collide on insert. Same SAVEPOINT fix;
+  since the computation is deterministic, the loser just reads back the winner's equivalent
+  result instead of retrying its own write.
+- `resolve_career_path` (app/services/career_paths.py) passed the raw, caller-controlled
+  `target_role` straight into an `ILIKE` pattern for its title-fallback match. `%`/`_` in that
+  string are wildcards to `ILIKE`, not literal characters — a bare `%` matches every published
+  career path, which crashed `scalar_one_or_none()` with `MultipleResultsFound` (an unhandled
+  500) instead of cleanly resolving to "not found." Fixed by switching to a plain case-folded
+  equality comparison, which is also what the fallback was always semantically meant to be
+  (an exact, case-insensitive title match, not a substring/wildcard search).
+
+Also fixed in the same pass: `compute_and_store_skill_gaps` was being handed a raw
+`target_role` string and re-resolving it internally, even though every caller already
+resolves the `CareerPath` for its own response — a wasted duplicate query on every
+cache-miss/refresh, removed by threading the already-resolved `CareerPath` through instead.
+
+**Deliberate scope decisions:** `Occupation` JSON-LD for career pages and dynamic
+`opengraph-image` generation are both explicitly flagged in docs/SEO.md as incremental
+enhancements, not launch blockers — deferred, along with a shared OG-image template that makes
+more sense once jobs/companies pages also exist (Phase 7). `skill_demand` (docs/DATABASE.md
+§2.5) needs aggregated real job postings to be meaningful, so it's not built yet either — see
+the ML_PIPELINE.md note on the interim priority formula. Also fixed in passing: a real
+production Docker gap where server-side (SSR/SSG) fetches from inside the web container need
+a different API URL (`API_INTERNAL_URL=http://api:8000`, the Docker network's service name)
+than the browser does (`NEXT_PUBLIC_API_URL=http://localhost:8000`, the published port) —
+`lib/public-api.ts` and `docker-compose.yml` now distinguish the two. The equivalent fix for a
+non-Compose production Docker build (passing these as build ARGs to `Dockerfile.web`, since a
+standalone `docker build` has no compose-level env injection) is left for Phase 16/17
+(Deployment) rather than guessed at now.
+
+**Verified locally end-to-end:** ruff/mypy/pytest clean (79 tests — including two live
+concurrency regression tests — both with real and blank AI provider keys, matching CI);
+`alembic check` reports no drift; frontend lint/typecheck/test/build all clean, including
+`generateStaticParams` actually pre-rendering all 8 career paths and 20 curated skills at
+build time. Real Playwright verification against the rebuilt Docker stack: a fresh throwaway
+Supabase user signing in, adding real skills through the actual profile UI, and seeing a
+correctly color-coded, correctly-prioritized skill-gap breakdown for a real target role;
+`/careers`, `/careers/[slug]`, and `/skills/[slug]` rendering real seeded content with working
+cross-links in both directions.
 
 ## Phase 7 — Job Recommendation ⬜
 

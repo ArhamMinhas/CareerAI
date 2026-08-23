@@ -1,12 +1,18 @@
+import asyncio
+import uuid
+
 import jwt
 import pytest
 from cryptography.hazmat.primitives.asymmetric import ec
 from fastapi import HTTPException
 from httpx import AsyncClient
 from jwt import PyJWK
+from sqlalchemy import delete
 
 from app.core.config import settings
-from app.core.security import _decode_supabase_jwt
+from app.core.db import AsyncSessionLocal
+from app.core.security import TokenPayload, _decode_supabase_jwt, get_current_user
+from app.models.user import User
 
 
 class _FakeJWKClient:
@@ -54,6 +60,33 @@ def test_decode_supabase_jwt_rejects_bad_signature(monkeypatch: pytest.MonkeyPat
 
     with pytest.raises(HTTPException):
         _decode_supabase_jwt(token)
+
+
+async def test_get_current_user_survives_concurrent_first_sight(
+    client: AsyncClient,
+) -> None:
+    """Regression test for a real production incident: a browser page load fires several
+    `apiFetch` calls in parallel, each on its own DB session. On a user's very first
+    authenticated request, more than one of those concurrent requests could reach
+    `get_current_user`'s "create the local row" branch before either had committed, and the
+    loser crashed with a duplicate-key `IntegrityError` on `users_pkey` instead of just
+    resolving to the winner's row — surfaced live as CORS-looking browser fetch failures on
+    the dashboard's first load after sign-in (Chrome misreports a response that never
+    completed as a CORS block, not a 500)."""
+    new_user_id = uuid.uuid4()
+    token = TokenPayload(sub=str(new_user_id), email="concurrent-first-sight@example.com")
+
+    async def _resolve() -> User:
+        async with AsyncSessionLocal() as db:
+            return await get_current_user(token, db)
+
+    try:
+        first, second = await asyncio.gather(_resolve(), _resolve())
+        assert first.id == second.id == new_user_id
+    finally:
+        async with AsyncSessionLocal() as db:
+            await db.execute(delete(User).where(User.id == new_user_id))
+            await db.commit()
 
 
 def test_decode_supabase_jwt_accepts_valid_es256_token_via_jwks(

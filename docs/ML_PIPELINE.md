@@ -61,8 +61,15 @@ language — it does not recompute it.
 
 Deterministic set comparison: candidate skills (from `user_skills`) vs. the target role's skill
 profile (curated per-role skill weightings, informed by aggregated `job_skills` data). Output
-buckets: strong / intermediate / missing / recommended, each with a priority derived from how
-frequently that skill appears in matching job postings (`skill_demand`).
+buckets (docs/DATABASE.md §2.3 `skill_gaps.gap_level`): missing / weak / adequate / strong,
+each with a priority.
+
+**Phase 6 implementation note:** priority is `career_path_skills.weight` (doubled if
+`is_core`), doubled again for `missing` vs. `weak` — `skill_demand` (docs/DATABASE.md §2.5)
+doesn't exist yet (it needs aggregated real job postings, which is Phase 7/8's job), so it
+isn't a factor yet. Once it lands, blend it into the same formula (`app/services/
+skill_gap.py::_priority`) rather than replacing it — weight/core-ness is still a real signal
+even where demand data is thin.
 
 ## 3. Trained ML models
 

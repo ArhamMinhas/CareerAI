@@ -2,7 +2,8 @@ import enum
 import re
 import uuid
 
-from sqlalchemy import Enum, ForeignKey, String, UniqueConstraint
+from pgvector.sqlalchemy import Vector
+from sqlalchemy import ARRAY, Enum, ForeignKey, Index, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -10,6 +11,8 @@ from app.core.db import Base
 from app.models.mixins import TimestampMixin, UUIDPKMixin
 
 _SLUG_NON_WORD = re.compile(r"[^a-z0-9]+")
+
+SKILL_EMBEDDING_DIMENSIONS = 1536
 
 
 def slugify(name: str) -> str:
@@ -19,16 +22,34 @@ def slugify(name: str) -> str:
 class Skill(UUIDPKMixin, TimestampMixin, Base):
     """Global skill taxonomy entry — docs/DATABASE.md §2.2.
 
-    Phase 3 only needs `name`/`slug`/`category` to support manual skill entry with
-    autocomplete; `synonyms`, `seo_summary`, and `embedding` are Phase 6 concerns
-    (skill-gap engine, public `/skills/[slug]` pages) added when that phase needs them.
+    Phase 3 shipped `name`/`slug`/`category` only, for manual skill entry with autocomplete.
+    `synonyms`/`seo_summary`/`embedding` are added here in Phase 6, which is the first feature
+    that needs them: `seo_summary` renders on the public `/skills/[slug]` page
+    (docs/SEO.md §1), `synonyms` improves that page's on-page content and search matching, and
+    `embedding` powers the "related skills" section there via cosine similarity — all three
+    stay null for skills nobody has curated content for yet (most user-entered/resume-extracted
+    skills), which is fine: the gap-comparison algorithm itself never depends on them, only the
+    content pages do.
     """
 
     __tablename__ = "skills"
+    __table_args__ = (
+        Index(
+            "ix_skills_embedding_hnsw_cosine",
+            "embedding",
+            postgresql_using="hnsw",
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+        ),
+    )
 
     name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     slug: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     category: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    synonyms: Mapped[list[str] | None] = mapped_column(ARRAY(String(100)), nullable=True)
+    seo_summary: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    embedding: Mapped[list[float] | None] = mapped_column(
+        Vector(SKILL_EMBEDDING_DIMENSIONS), nullable=True
+    )
 
 
 class Proficiency(enum.StrEnum):

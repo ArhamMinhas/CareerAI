@@ -8,6 +8,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt import PyJWKClient
 from pydantic import BaseModel
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -122,12 +123,29 @@ async def get_current_user(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> User:
     """Resolves the verified Supabase identity to our local `users` row, creating it on
-    first sight (a user can be verified by Supabase before they've ever hit our API)."""
+    first sight (a user can be verified by Supabase before they've ever hit our API).
+
+    A browser page load routinely fires several `apiFetch` calls in parallel (e.g. the
+    dashboard's cards each fetching their own data) — on a user's *very first* authenticated
+    request, more than one of those concurrent requests can reach the "does not exist yet"
+    branch before any of them has committed, and all but one crash with a duplicate-key
+    `IntegrityError` on `users_pkey`. Same race, same fix, as `get_or_create_skill`
+    (app/services/skill_taxonomy.py): a SAVEPOINT around the insert, re-querying on conflict
+    instead of letting it propagate as an unhandled 500."""
     result = await db.execute(select(User).where(User.id == token.sub))
     user = result.scalar_one_or_none()
-    if user is None:
-        user = User(id=token.sub, email=token.email or "", role=Role.USER)
-        db.add(user)
+    if user is not None:
+        return user
+
+    try:
+        async with db.begin_nested():
+            user = User(id=token.sub, email=token.email or "", role=Role.USER)
+            db.add(user)
+            await db.flush()
+    except IntegrityError:
+        result = await db.execute(select(User).where(User.id == token.sub))
+        user = result.scalar_one()
+    else:
         await db.commit()
         await db.refresh(user)
     return user

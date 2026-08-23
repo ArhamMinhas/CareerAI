@@ -37,13 +37,8 @@ const faqs = [
 ];
 
 function JsonLd() {
+  // `Organization` is site-wide (app/layout.tsx) — this page only adds what's specific to it.
   const data = [
-    {
-      "@context": "https://schema.org",
-      "@type": "Organization",
-      name: "CareerAI",
-      url: siteUrl,
-    },
     {
       "@context": "https://schema.org",
       "@type": "WebSite",

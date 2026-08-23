@@ -41,6 +41,21 @@ export const metadata: Metadata = {
   },
 };
 
+function OrganizationJsonLd() {
+  // Site-wide brand identity (docs/SEO.md §2.4) — every page gets this once, from here,
+  // rather than each page re-declaring it (the landing page used to; now it only adds what's
+  // specific to it).
+  const data = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "CareerAI",
+    url: siteUrl,
+  };
+  return (
+    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }} />
+  );
+}
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
@@ -50,6 +65,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col bg-background text-foreground">
+        <OrganizationJsonLd />
         <ThemeProvider>
           <MotionProvider>{children}</MotionProvider>
         </ThemeProvider>

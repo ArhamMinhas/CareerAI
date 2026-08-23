@@ -127,10 +127,21 @@ DELETE /api/v1/resumes/{id}                -> soft delete
 
 ### Skills
 ```
-GET    /api/v1/skills                      -> ?q= search (Phase 3: manual-entry autocomplete)
-GET    /api/v1/skills/{id_or_slug}         -> Phase 6
-GET    /api/v1/skills/gaps?target_role=ai_engineer   -> Phase 6
-POST   /api/v1/skills/gaps/refresh         -> Phase 6
+GET    /api/v1/skills                      -> ?q= search (Phase 3: manual-entry autocomplete, auth required)
+GET    /api/v1/skills/gaps?target_role=    -> the caller's cached gap analysis; auto-computes on first read
+POST   /api/v1/skills/gaps/refresh?target_role=  -> forces a fresh recomputation
+GET    /api/v1/skills/curated              -> every skill with curated /skills/[slug] content — public, sitemap generator only
+GET    /api/v1/skills/{id_or_slug}         -> skill detail (public — /skills/[slug])
+```
+`target_role` is free text (e.g. from `career_goals.target_role`), resolved server-side to a
+`career_paths` row by slug or title match (app/services/career_paths.py) — not a slug or id
+itself. `gaps`/`gaps/refresh` are the only skills routes requiring auth; `{id_or_slug}` and
+`curated` are public like the career-path routes below, since they back indexable pages too.
+
+### Careers (SEO surface — no auth required)
+```
+GET    /api/v1/careers                     -> list published career paths
+GET    /api/v1/careers/{slug}              -> career path detail + required skills + related paths
 ```
 
 ### Public content (SEO surface — no auth required)
@@ -140,10 +151,9 @@ pages in [SEO.md](./SEO.md); reads `career_paths`/`resources`/`companies` from
 [DATABASE.md §2.6](./DATABASE.md#26-public-content--seo). Public, cacheable (long-TTL,
 `Cache-Control` set for CDN caching at the edge), and unauthenticated — these are the routes
 Next.js SSR/ISR calls at build/revalidate time, not something a logged-in user's browser hits
-directly per request.
+directly per request. `/careers*` shipped in Phase 6 (see its own section above); the rest
+below ship with companies/resources.
 ```
-GET    /api/v1/careers                     -> list published career paths
-GET    /api/v1/careers/{slug}              -> career path detail + required skills
 GET    /api/v1/companies/{id}
 GET    /api/v1/companies/{id}/jobs         -> jobs at this company (for the company page)
 GET    /api/v1/resources                   -> list published articles, filter by category/tag
