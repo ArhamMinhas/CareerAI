@@ -21,7 +21,11 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.11', '3.12']
+        # 3.12 only: app/schemas/envelope.py's `class Envelope[T]` uses PEP 695 generic syntax,
+        # a hard SyntaxError on 3.11 — not a bug to work around, this project's actual minimum
+        # supported version (see pyproject.toml's mypy python_version and the api/worker
+        # Dockerfiles, both already pinned to 3.12).
+        python-version: ['3.12']
       fail-fast: false
     defaults:
       run:
