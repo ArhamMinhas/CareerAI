@@ -152,12 +152,20 @@ jobs:
     name: Build Docker images
     runs-on: ubuntu-latest
     needs: [web, api, security]
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    # `secrets` isn't a recognized named-value inside `if:` — GitHub rejects the *entire*
-    # workflow file at parse time if it's referenced there directly ("Unrecognized named-value:
-    # 'secrets'"), which is why every job in this file silently failed to even queue. Surfacing
-    # it as a job-level env var first is the documented workaround: `env` *is* readable from `if:`.
+    # `env` (like `secrets`) isn't a recognized named-value inside a *job-level* `if:` — only
+    # inside step-level `if:`, once that job's env block is actually in scope. So this job's own
+    # condition can only check `github`/`needs`; whether to actually attempt each image build
+    # is gated per-step below instead (see the "Build and push *" steps).
+    if: |
+      github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') &&
+      needs.web.result == 'success' && needs.api.result == 'success' && needs.security.result == 'success'
     env:
+      # No registry secrets are configured yet (DOCKER_USERNAME/PASSWORD/REGISTRY — real
+      # deployment infra is Phase 16/17, not this phase). Without a real registry,
+      # `docker/metadata-action`'s `images:` resolves to a malformed `/careerai-web` reference
+      # (empty registry, leading slash), and the build step fails validating that tag even with
+      # `push:` correctly forced to false — so each build/push step is skipped outright below,
+      # not just the login step.
       HAS_DOCKER_CREDS: ${{ secrets.DOCKER_USERNAME != '' }}
     steps:
       - uses: actions/checkout@v4
@@ -186,6 +194,7 @@ jobs:
 
       - name: Build and push web image
         uses: docker/build-push-action@v5
+        if: env.HAS_DOCKER_CREDS == 'true'
         with:
           context: .
           file: ./infrastructure/docker/Dockerfile.web
@@ -209,6 +218,7 @@ jobs:
 
       - name: Build and push api image
         uses: docker/build-push-action@v5
+        if: env.HAS_DOCKER_CREDS == 'true'
         with:
           context: .
           file: ./infrastructure/docker/Dockerfile.api
@@ -233,6 +243,7 @@ jobs:
 
       - name: Build and push worker image
         uses: docker/build-push-action@v5
+        if: env.HAS_DOCKER_CREDS == 'true'
         with:
           context: .
           file: ./infrastructure/docker/Dockerfile.worker

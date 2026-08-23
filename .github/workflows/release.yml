@@ -141,6 +141,7 @@ jobs:
           echo "tag=${VERSION#v}" >> $GITHUB_OUTPUT
 
       - name: Tag and push web image
+        if: env.HAS_DOCKER_CREDS == 'true'
         run: |
           REGISTRY="${{ secrets.DOCKER_REGISTRY }}"
           VERSION="${{ steps.version.outputs.tag }}"
@@ -153,6 +154,7 @@ jobs:
           docker push ${REGISTRY}/careerai-web:latest
 
       - name: Tag and push api image
+        if: env.HAS_DOCKER_CREDS == 'true'
         run: |
           REGISTRY="${{ secrets.DOCKER_REGISTRY }}"
           VERSION="${{ steps.version.outputs.tag }}"
@@ -165,6 +167,7 @@ jobs:
           docker push ${REGISTRY}/careerai-api:latest
 
       - name: Tag and push worker image
+        if: env.HAS_DOCKER_CREDS == 'true'
         run: |
           REGISTRY="${{ secrets.DOCKER_REGISTRY }}"
           VERSION="${{ steps.version.outputs.tag }}"
