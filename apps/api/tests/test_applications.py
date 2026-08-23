@@ -6,9 +6,7 @@ from app.models.job import Job
 
 
 async def test_application_crud_lifecycle(authed_client: AsyncClient, seeded_job: Job) -> None:
-    create = await authed_client.post(
-        "/api/v1/applications", json={"job_id": str(seeded_job.id)}
-    )
+    create = await authed_client.post("/api/v1/applications", json={"job_id": str(seeded_job.id)})
     assert create.status_code == 201
     body = create.json()["data"]
     assert body["status"] == "saved"
@@ -67,9 +65,7 @@ async def test_create_application_after_delete_does_not_conflict(
 
 
 async def test_create_application_404_for_unknown_job(authed_client: AsyncClient) -> None:
-    response = await authed_client.post(
-        "/api/v1/applications", json={"job_id": str(uuid.uuid4())}
-    )
+    response = await authed_client.post("/api/v1/applications", json={"job_id": str(uuid.uuid4())})
     assert response.status_code == 404
 
 

@@ -112,6 +112,11 @@ jobs:
   security:
     name: Security checks
     runs-on: ubuntu-latest
+    # Uploading SARIF to the repo's Security tab needs this explicitly — the default
+    # GITHUB_TOKEN permissions don't include it, and without it the upload step 403s.
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - uses: actions/checkout@v4
 

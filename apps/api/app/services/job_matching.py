@@ -129,9 +129,7 @@ def _experience_subscore(years: float, seniority_level: str | None) -> JobMatchS
         )
 
     level_lower = seniority_level.lower()
-    matched_range = next(
-        (rng for key, rng in _SENIORITY_YEAR_RANGES if key in level_lower), None
-    )
+    matched_range = next((rng for key, rng in _SENIORITY_YEAR_RANGES if key in level_lower), None)
     if matched_range is None:
         return JobMatchSubScore(
             score=70.0,
@@ -202,8 +200,7 @@ def _preference_subscore(career_goal: CareerGoal | None, job: Job) -> JobMatchSu
         score=round(score, 2),
         weight=weight,
         explanation=(
-            f"Target role '{career_goal.target_role}' compared against posting title "
-            f"'{job.title}'."
+            f"Target role '{career_goal.target_role}' compared against posting title '{job.title}'."
         ),
     )
 
@@ -407,8 +404,6 @@ async def refresh_job_matches(
 
 async def get_stored_job_matches(db: AsyncSession, *, user_id: uuid.UUID) -> list[JobMatch]:
     result = await db.execute(
-        select(JobMatch)
-        .where(JobMatch.user_id == user_id)
-        .order_by(JobMatch.match_score.desc())
+        select(JobMatch).where(JobMatch.user_id == user_id).order_by(JobMatch.match_score.desc())
     )
     return list(result.scalars().all())

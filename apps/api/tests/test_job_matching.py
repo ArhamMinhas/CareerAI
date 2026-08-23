@@ -151,9 +151,7 @@ def test_experience_subscore_floors_overqualified_penalty() -> None:
 
 
 def test_education_subscore_rewards_presence_not_absence() -> None:
-    with_education = _education_subscore(
-        [Education(profile_id=uuid.uuid4(), institution="MIT")]
-    )
+    with_education = _education_subscore([Education(profile_id=uuid.uuid4(), institution="MIT")])
     without_education = _education_subscore([])
 
     assert with_education.score == 100.0
