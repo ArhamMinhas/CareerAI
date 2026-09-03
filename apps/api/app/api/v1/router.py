@@ -11,6 +11,8 @@ from app.api.v1 import (
     jobs,
     matches,
     profile,
+    rag,
+    resources,
     resumes,
     skills,
 )
@@ -28,3 +30,5 @@ api_router.include_router(companies.router)
 api_router.include_router(jobs.router)
 api_router.include_router(matches.router)
 api_router.include_router(applications.router)
+api_router.include_router(resources.router)
+api_router.include_router(rag.router)

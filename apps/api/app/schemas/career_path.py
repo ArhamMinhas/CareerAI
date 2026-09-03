@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -6,7 +7,10 @@ from app.schemas.skill import SkillRead
 
 
 class CareerPathRead(BaseModel):
-    """List-view projection — `/api/v1/careers` and the public `/careers` index page."""
+    """List-view projection — `/api/v1/careers`, the public `/careers` index page, and
+    `sitemap.ts` (which needs `updated_at` for a real `lastModified` — see docs/SEO.md;
+    added in Phase 9 alongside the same fix for `ResourceRead`, replacing what had been a
+    hardcoded `new Date()` in the sitemap for this content type)."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -15,6 +19,7 @@ class CareerPathRead(BaseModel):
     title: str
     summary: str
     related_job_titles: list[str] | None
+    updated_at: datetime
 
 
 class CareerPathSkillRead(BaseModel):

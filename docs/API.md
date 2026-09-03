@@ -18,8 +18,10 @@ endpoints it needs (see [ROADMAP.md](./ROADMAP.md)).
 - **Filtering/sorting:** `?filter[field]=value` for filters, `?sort=-created_at,title` for
   sorting (leading `-` = descending). Documented per-endpoint, not a generic passthrough to SQL.
 - **Idempotency:** mutating AI-triggering endpoints (`/resumes/{id}/analyze`,
-  `/interviews/{id}/answer`) accept an `Idempotency-Key` header to avoid double-billing on
-  client retries.
+  `/interviews/{id}/answer`, `/rag/query`) accept an `Idempotency-Key` header to avoid
+  double-billing on client retries. `/rag/query` (Phase 9) is the first to back it with a real
+  `SET NX` reservation + cached-response replay, not just a required-header check — see
+  `app/core/idempotency.py`.
 
 ## 2. Standard response envelope
 
@@ -153,14 +155,17 @@ pages in [SEO.md](./SEO.md); reads `career_paths`/`resources`/`companies` from
 Next.js SSR/ISR calls at build/revalidate time, not something a logged-in user's browser hits
 directly per request. `/careers*` shipped in Phase 6 (see its own section above); companies/jobs
 shipped in Phase 7 (see below) — routed by `slug`, not `{id}` as this section originally said,
-matching every other public content type here (see `Company`'s model docstring); resources are
-still ⬜.
+matching every other public content type here (see `Company`'s model docstring); resources
+shipped in Phase 9.
 ```
 GET    /api/v1/companies/{slug}
 GET    /api/v1/companies/{slug}/jobs       -> jobs at this company (for the company page)
-GET    /api/v1/resources                   -> list published articles, filter by category/tag
-GET    /api/v1/resources/{slug}
+GET    /api/v1/resources                   -> list published articles
+GET    /api/v1/resources/{slug}            -> article detail + related_resources (embedding similarity)
 ```
+No `category`/`tag` filtering on the list endpoint, unlike this section's original draft —
+matches `GET /careers`'s established "curated catalog is small by design, not an unbounded feed"
+precedent; add filtering if/when the catalog's real size ever justifies it.
 
 ### Career
 ```
@@ -191,10 +196,20 @@ GET    /api/v1/interviews/{id}/evaluation
 GET    /api/v1/interviews                  -> history
 ```
 
-### RAG / AI chat
+### RAG / AI chat (Phase 9)
 ```
-POST   /api/v1/ai/chat                     -> grounded Q&A, streams response + sources (SSE)
+POST   /api/v1/rag/query                   -> grounded Q&A + citations; Idempotency-Key required,
+                                               real per-user token-bucket rate limit (429 +
+                                               Retry-After), backs /dashboard/ask
 ```
+Shipped as `POST /api/v1/rag/query`, a single non-streaming JSON response — not the `/api/v1/
+ai/chat` SSE-streaming shape this section originally sketched. Answers are capped at 600 output
+tokens (short by design), and both the real rate limiter and the real Idempotency-Key
+reserve/replay/cache logic are far simpler to build correctly against one atomic response than
+against a stream that would need to be cached and replayed chunk-by-chunk — a deliberate
+trade-off given this phase's mandate to build both controls for real rather than defer them
+again. Revisit streaming if/when a longer-form answer format makes non-streaming latency a real
+problem.
 
 ### Analytics
 ```

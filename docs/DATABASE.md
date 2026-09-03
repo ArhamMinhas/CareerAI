@@ -426,10 +426,35 @@ erDiagram
   renders.
 - `RESOURCES` is what `/resources/[slug]` renders **and** the source content the RAG knowledge
   base ingests ([AI_ARCHITECTURE.md §6](./AI_ARCHITECTURE.md#6-rag-pipeline)) — `kb_ingest.py`
-  chunks `body_md` into `EMBEDDINGS` rows for retrieval, while the same row is served directly
-  (rendered from `body_md`) as a public article page. `resources.embedding` is a whole-document
-  embedding used for "related articles" internal linking; per-chunk embeddings for RAG retrieval
-  live in `EMBEDDINGS` (`owner_type = 'resource'`).
+  chunks `body_md` for retrieval, while the same row is served directly (rendered from `body_md`)
+  as a public article page. `resources.embedding` is a whole-document embedding used for "related
+  articles" internal linking.
+  **Deviation from this doc's original design, decided during Phase 9 implementation:**
+  per-chunk RAG embeddings do **not** live in `EMBEDDINGS` (`owner_type = 'resource'`) as
+  originally specified here. `EMBEDDINGS` has no text/content column — only a vector and an
+  owner pointer — so it can't hold what retrieval needs to show a user (the chunk text itself),
+  and its own docstring commits to an immutable, single-current-value-by-`created_at` lifecycle
+  that's wrong for RAG chunks, which need a *set* of N rows per resource replaced atomically on
+  re-ingestion. Reusing `EMBEDDINGS` would mean either violating that contract or leaving
+  orphaned stale chunks from a prior ingestion mixed into future retrieval — a real correctness
+  bug (citing removed content), not a style preference. Chunks live in a new dedicated
+  `KB_CHUNKS` table instead:
+  ```mermaid
+  erDiagram
+      RESOURCES ||--o{ KB_CHUNKS : chunked_into
+      KB_CHUNKS {
+          uuid id PK
+          uuid resource_id FK
+          int chunk_index
+          text chunk_text
+          vector embedding
+          int token_count
+          timestamptz created_at
+      }
+  ```
+  `UniqueConstraint(resource_id, chunk_index)` backs a SAVEPOINT-based re-ingestion race fix
+  (`app/services/skill_gap.py`'s exact pattern) in `kb_ingest.py`. See `app/models/kb_chunk.py`'s
+  docstring for the full reasoning.
 - `published`/`published_at` gates what's in the sitemap and public API responses — draft rows
   are queryable internally (e.g. by an admin editor, Phase 13) but never served publicly or
   indexed.

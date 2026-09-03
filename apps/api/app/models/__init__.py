@@ -10,9 +10,11 @@ from app.models.embedding import Embedding
 from app.models.experience import Experience
 from app.models.job import Job, JobSkill
 from app.models.job_match import Application, ApplicationStatus, JobMatch
+from app.models.kb_chunk import KbChunk
 from app.models.market_data import SalaryData, SkillDemand
 from app.models.profile import Profile
 from app.models.project import Project
+from app.models.resource import Resource
 from app.models.resume import FileType, Resume, ResumeStatus, ResumeVersion
 from app.models.skill import Proficiency, Skill, SkillSource, UserSkill
 from app.models.skill_gap import GapLevel, SkillGap
@@ -34,9 +36,11 @@ __all__ = [
     "Job",
     "JobMatch",
     "JobSkill",
+    "KbChunk",
     "Proficiency",
     "Profile",
     "Project",
+    "Resource",
     "Resume",
     "ResumeStatus",
     "ResumeVersion",

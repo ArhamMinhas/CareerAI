@@ -14,12 +14,16 @@ const supabase = createClient();
 export class ApiError extends Error {
   status: number;
   code: string;
+  /** Seconds to wait before retrying — read from the `Retry-After` response header (docs/API.md
+   * §4's 429 contract). `null` for every other status; only rate-limited AI routes set it. */
+  retryAfterSeconds: number | null;
 
-  constructor(status: number, code: string, message: string) {
+  constructor(status: number, code: string, message: string, retryAfterSeconds: number | null = null) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
@@ -64,10 +68,13 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
 
   if (!response.ok) {
     const errorBody = body as ErrorEnvelope;
+    const retryAfterHeader = response.headers.get("Retry-After");
+    const retryAfterSeconds = retryAfterHeader ? Number.parseInt(retryAfterHeader, 10) : null;
     throw new ApiError(
       response.status,
       errorBody.error?.code ?? "UNKNOWN_ERROR",
-      errorBody.error?.message ?? "Something went wrong. Please try again."
+      errorBody.error?.message ?? "Something went wrong. Please try again.",
+      Number.isFinite(retryAfterSeconds) ? retryAfterSeconds : null
     );
   }
 

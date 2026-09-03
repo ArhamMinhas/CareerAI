@@ -1,0 +1,42 @@
+[
+  {
+    "question": "How do I make sure my resume actually gets past an ATS?",
+    "expected_resource_slugs": ["ats-resume-tips"]
+  },
+  {
+    "question": "What font should I use on my resume so it parses correctly?",
+    "expected_resource_slugs": ["ats-resume-tips"]
+  },
+  {
+    "question": "How do I turn a vague resume bullet into something stronger?",
+    "expected_resource_slugs": ["quantify-resume-bullets"]
+  },
+  {
+    "question": "I can't find a hard number for one of my resume bullets — what should I do?",
+    "expected_resource_slugs": ["quantify-resume-bullets"]
+  },
+  {
+    "question": "I know I have a skill gap for a role I want — what should I actually do about it?",
+    "expected_resource_slugs": ["closing-skill-gaps"]
+  },
+  {
+    "question": "How should I prepare for a 'tell me about a time' interview question?",
+    "expected_resource_slugs": ["behavioral-interview-prep"]
+  },
+  {
+    "question": "What's the STAR method and how do I use it in an interview?",
+    "expected_resource_slugs": ["behavioral-interview-prep"]
+  },
+  {
+    "question": "How do I negotiate my salary after getting a job offer?",
+    "expected_resource_slugs": ["negotiating-job-offers"]
+  },
+  {
+    "question": "Should I accept a job offer over the phone on the spot?",
+    "expected_resource_slugs": ["negotiating-job-offers"]
+  },
+  {
+    "question": "What's the weather going to be like in Paris tomorrow?",
+    "expected_resource_slugs": []
+  }
+]

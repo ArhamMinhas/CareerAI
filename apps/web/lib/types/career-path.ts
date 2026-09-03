@@ -6,6 +6,7 @@ export type CareerPath = {
   title: string;
   summary: string;
   related_job_titles: string[] | null;
+  updated_at: string;
 };
 
 export type CareerPathSkill = {

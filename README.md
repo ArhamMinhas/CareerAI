@@ -6,18 +6,24 @@ personalized learning roadmap, AI mock interviews, and career/job-market analyti
 combination of deterministic algorithms, trained ML models, retrieval (RAG), and LLM reasoning,
 never a bare "ask the LLM for everything" wrapper.
 
-**Status: Phase 7 — Job Recommendation ✅.** Monorepo, Next.js 15 + FastAPI apps, PostgreSQL +
+**Status: Phase 9 — RAG ✅.** Monorepo, Next.js 15 + FastAPI apps, PostgreSQL +
 pgvector via Docker Compose, CI, the landing page/dashboard/theme/SEO plumbing from Phase 2,
 the profile system (education, experience, projects, skills, career goals) from Phase 3, email/
 password + Google OAuth and real resume intelligence (async PDF/DOCX upload, NLP + LLM
 extraction, deterministic explainable scoring) from Phase 4, a provider-agnostic LLM/embeddings
 abstraction with `ai_conversations` cost logging from Phase 5, a curated career-path catalog with
-deterministic skill-gap comparison from Phase 6, and now real job postings ingested from the
+deterministic skill-gap comparison from Phase 6, real job postings ingested from the
 Adzuna Jobs API (with real external apply links), keyword-then-semantic job search with
 relevance-ranked results, the hybrid `job_match_score` engine (`/dashboard/matches`) plus a
 live per-job fit score on individual postings, and public SEO-indexed `/jobs`, `/jobs/[id]`,
-`/companies/[slug]` pages. See [docs/ROADMAP.md](docs/ROADMAP.md) for the full phase-by-phase
-status.
+`/companies/[slug]` pages from Phase 7, six trained ML models (job-suitability, career
+recommendation, skill clustering, salary prediction, job-category classification, skill-demand
+forecasting) evaluated against real baselines and wired live into `/dashboard/matches`,
+`/careers/[slug]`, and `/skills/[slug]` from Phase 8, and now a full RAG pipeline — knowledge-base
+chunking/embedding, retrieval-grounded generation with source citations, a real per-user Redis
+rate limiter and Idempotency-Key dedup, and public `/resources`/`/resources/[slug]` article pages
+that double as the RAG retrieval corpus (`/dashboard/ask`) — from Phase 9. See
+[docs/ROADMAP.md](docs/ROADMAP.md) for the full phase-by-phase status.
 
 ## Why this project exists
 

@@ -3,6 +3,7 @@ import { fetchPublic, fetchPublicAllPages } from "@/lib/public-api";
 import type { CareerPath } from "@/lib/types/career-path";
 import type { Skill } from "@/lib/types/profile";
 import type { Job } from "@/lib/types/job";
+import type { Resource } from "@/lib/types/resource";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
@@ -13,10 +14,11 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 // single flat sitemap covers everything fine, same documented scope deviation as Phase 6's
 // careers/skills sitemap. Revisit once real job-ingestion volume justifies the split.
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [careerPaths, curatedSkills, jobs] = await Promise.all([
+  const [careerPaths, curatedSkills, jobs, resources] = await Promise.all([
     fetchPublic<CareerPath[]>("/api/v1/careers", 3600).catch(() => []),
     fetchPublic<Skill[]>("/api/v1/skills/curated", 3600).catch(() => []),
     fetchPublicAllPages<Job>("/api/v1/jobs", 600).catch(() => []),
+    fetchPublic<Resource[]>("/api/v1/resources", 3600).catch(() => []),
   ]);
 
   const companySlugs = Array.from(new Set(jobs.map((job) => job.company.slug)));
@@ -40,9 +42,24 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "daily",
       priority: 0.8,
     },
+    {
+      url: `${siteUrl}/resources`,
+      lastModified: new Date(),
+      changeFrequency: "weekly",
+      priority: 0.8,
+    },
+    // `lastModified` is each row's real `updated_at` (docs/SEO.md's "sourced from each row's
+    // updated_at" requirement) — not the hardcoded `new Date()` this sitemap used for careers
+    // before Phase 9 added `updated_at` to `CareerPathRead` specifically to fix this.
     ...careerPaths.map((careerPath) => ({
       url: `${siteUrl}/careers/${careerPath.slug}`,
-      lastModified: new Date(),
+      lastModified: new Date(careerPath.updated_at),
+      changeFrequency: "monthly" as const,
+      priority: 0.7,
+    })),
+    ...resources.map((resource) => ({
+      url: `${siteUrl}/resources/${resource.slug}`,
+      lastModified: new Date(resource.updated_at),
       changeFrequency: "monthly" as const,
       priority: 0.7,
     })),

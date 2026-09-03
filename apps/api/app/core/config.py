@@ -73,7 +73,11 @@ class Settings(BaseSettings):
     # Security
     secret_key: str = "dev-only-insecure-secret-change-me"
     rate_limit_default_per_minute: int = 120
-    rate_limit_ai_per_minute: int = 20
+    # `gt=0`: `app/core/rate_limit.py`'s token-bucket divides by this value's derived refill
+    # rate — a misconfigured `0` would divide by zero inside the Lua script rather than
+    # cleanly failing at startup, the same "fail fast" promise this class's docstring makes
+    # for every other required setting.
+    rate_limit_ai_per_minute: int = Field(default=20, gt=0)
 
     @property
     def cors_origins_list(self) -> list[str]:

@@ -6,6 +6,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete
 
 from app.core.db import AsyncSessionLocal, engine
+from app.core.redis import get_redis
 from app.core.security import get_current_user
 from app.main import app
 from app.models.company import Company
@@ -23,6 +24,17 @@ async def _fresh_engine_per_test() -> None:
     the test itself. Disposing before each test forces fresh connections under the loop
     that's actually running now."""
     await engine.dispose()
+
+
+@pytest.fixture(autouse=True)
+async def _fresh_redis_per_test() -> None:
+    """Same cross-event-loop issue as `_fresh_engine_per_test`, for `app.core.redis.get_redis`'s
+    process-level singleton: its connection pool binds to whichever loop was running when a
+    connection was first opened. Surfaced by Phase 9's rate-limit tests (tests/test_rate_limit.py),
+    the first tests in this suite to make several real round trips against Redis across separate
+    test functions in one run — clearing the cache forces a fresh client under the loop that's
+    actually running now, same fix as the engine's."""
+    get_redis.cache_clear()
 
 
 @pytest.fixture

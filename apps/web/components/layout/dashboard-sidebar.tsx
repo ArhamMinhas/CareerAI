@@ -15,6 +15,7 @@ import {
   MessagesSquare,
   BarChart3,
   Settings,
+  Bot,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
@@ -25,6 +26,7 @@ const navItems = [
   { href: "/dashboard/profile", label: "Profile", icon: User },
   { href: "/dashboard/resume", label: "Resume", icon: FileText },
   { href: "/dashboard/skill-gap", label: "Skill Gap", icon: Target },
+  { href: "/dashboard/ask", label: "Ask AI", icon: Bot },
   { href: "/career", label: "Career", icon: Compass },
   { href: "/jobs", label: "Jobs", icon: Briefcase },
   { href: "/dashboard/matches", label: "Matches", icon: Sparkles },

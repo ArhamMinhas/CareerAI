@@ -576,12 +576,143 @@ models; the rendered HTML for `/skills/python` and `/careers/backend-engineer` c
 contain the new "Demand trend"/"Skill family"/"Predicted salary range" sections, not just a
 200 status.
 
-## Phase 9 — RAG ⬜
+## Phase 9 — RAG ✅
 
 Knowledge base ingestion/chunking, embeddings, retrieval, grounded generation with source
 citations — per [AI_ARCHITECTURE.md §6](./AI_ARCHITECTURE.md#6-rag-pipeline). The same
 `resources` content table doubles as the public, SEO-indexable `/resources/[slug]` article
-pages — one content source, two consumers (RAG grounding + organic search).
+pages — one content source, two consumers (RAG grounding + organic search). Five real, authored
+guide articles (ATS resumes, quantifying bullets, closing skill gaps, behavioral interviews,
+negotiating offers) seeded via `app/scripts/seed_resources.py`, chunked and embedded for real.
+
+**Chunk storage — a deliberate, documented deviation from docs/DATABASE.md §2.6:** the doc's
+original design routes per-chunk RAG embeddings through the polymorphic `Embedding` table
+(`owner_type='resource'`). That table has no text/content column — it's vector-plus-pointer only
+— so it can't hold what retrieval needs to show a user, and its own docstring commits to an
+immutable, single-current-value-by-`created_at` lifecycle that's wrong for a *set* of N chunk
+rows replaced atomically on re-ingestion. New dedicated `KbChunk` table instead (own HNSW index,
+`UniqueConstraint(resource_id, chunk_index)`), with the reasoning recorded on the model itself,
+not just here.
+
+**Chunking** (`app/ai/kb_ingest.py`): splits on heading boundaries first, then paragraphs,
+merging small ones up to a ~400-word target and splitting any single oversized paragraph (a
+table/code block) into its own windows — word-count × 1.3 heuristic, not a real tokenizer, same
+"no tokenizer dependency just for this" tradeoff `resume_tasks.py` already made. ~15% overlap
+carries each chunk's tail into the next chunk's head. Re-ingestion is delete-then-reinsert inside
+a SAVEPOINT (`skill_gap.py`'s exact pattern), so concurrent re-ingestion of the same resource
+can't crash on a duplicate `chunk_index` — verified with a real concurrent-call regression test,
+same shape as `skill_gap.py`'s.
+
+**Retrieval + generation** (`app/ai/rag_answer.py`): the `resources.published` filter runs
+inside the same `WHERE`/`ORDER BY`/`LIMIT` query as the cosine-distance similarity search, never
+as a post-filter — verified with a regression test that seeds a draft resource whose chunk
+vector is the *closest* of all three candidates and asserts it's never retrieved. Assembled
+context is hard-capped in characters independent of each chunk's own soft token target; the
+prompt sets a real `max_tokens` (the first call site in the codebase to actually do this — every
+existing one, including `resume_extraction.py`, currently leaves it unset). Citations are
+page-level (`/resources/[slug]`), not per-chunk deep links — a `#chunk-N` anchor would require
+the frontend's flowing `body_md` render and the chunker's own boundaries to stay in sync with no
+mechanism enforcing that.
+
+**Real cost controls, built for the first time in this codebase** (`rate_limit_ai_per_minute`
+had been defined but unenforced everywhere since Phase 3; the one existing AI route,
+`/resumes/{id}/analyze`, only checks `Idempotency-Key` is *present*, with no real dedup):
+- `app/core/rate_limit.py` — a real Redis-backed token bucket per user (`docs/API.md §4`'s
+  documented algorithm), evaluated atomically via a Lua script read through `TIME` inside Redis
+  itself (not the caller's clock, so multi-instance clock drift can't matter). **Fails closed**
+  on a Redis outage (503, not silently unlimited) — deliberately the opposite of
+  `services/embeddings.py`'s cache, which fails open because it's a cost optimization, not a
+  correctness dependency; a rate limiter's entire purpose is bounding cost, so failing open would
+  defeat it.
+- `app/core/idempotency.py` — real `SET NX` reservation + cached-response replay, not just a
+  header-presence check. The reservation TTL (120s) is deliberately much shorter than the
+  cached-response TTL (24h): using the long TTL for the reservation too would mean any request
+  that fails *after* reserving but *before* completing (a provider error, a crash) wedges that
+  key at "in progress" for a full day, 409-ing every retry — the short TTL self-heals instead.
+- Both scoped to `POST /api/v1/rag/query` only, not retrofitted onto other existing AI routes —
+  real, valuable follow-up work, but broader than this phase's scope. Phase 15 ("Production
+  Hardening") still owns the general, all-routes rate-limiting rollout; this is a scoped
+  implementation for the first route where unbounded cost was a real, immediate risk, not a
+  duplicate of that later phase.
+
+**Frontend:** `/resources` (index) and `/resources/[slug]` (SSG+ISR, `BreadcrumbJsonLd` +
+new `ArticleJsonLd` — not `FaqJsonLd`, since this content is guide prose, not curated Q&A pairs,
+and synthesizing fake FAQ pairs to populate that schema is exactly what docs/SEO.md warns
+against). New `/dashboard/ask` — a question box, grounded answer, and citation links back to the
+source `/resources/[slug]` pages; a distinct 429 state ("try again in Ns", reading the real
+`Retry-After` header now threaded through `ApiError`) rather than folding it into the generic
+error state, since it's the one new, uniquely-actionable error mode this phase introduces. No
+chat-history persistence (matches this phase's literal scope) — the in-page exchange list is
+session-only React state, lost on refresh.
+
+**Evaluation harness** (`app/ai/evaluation/run_eval.py` + `rag_cases.json`) — lives inside
+`apps/api`, not the top-level `ai/` directory: continuing the Phase 5 precedent already recorded
+in `ai/README.md` (no separate framework-agnostic consumer exists to need it), not a new
+deviation. Ten real cases run against the real seeded knowledge base with real embedding/LLM
+calls, reported honestly:
+- **Citation accuracy: 10/10** — every in-scope question cited (at least one of) the right
+  resource; the one deliberately out-of-domain question ("weather in Paris tomorrow") correctly
+  produced zero citations.
+- **Citation-marker groundedness: 9/10** — the one miss ("What font should I use on my resume?")
+  is a genuine retrieval-recall limitation, not a hallucination: the fact *is* in the seeded ATS
+  article, but top-5 chunk retrieval didn't surface the specific chunk it's in for that exact
+  phrasing, and the model correctly answered "the available context doesn't cover this" rather
+  than guessing. The safe behavior worked; the retrieval recall for narrow sub-topics inside a
+  longer article is the real, honestly-reported limitation — worth revisiting if/when a
+  hybrid keyword+vector retrieval pass is justified by real usage.
+
+**Real bugs found and fixed during this phase, before it was considered done:**
+- `app/models/__init__.py` didn't register the new `Resource`/`KbChunk` models, so the first
+  `alembic revision --autogenerate` silently produced an *empty* migration (no error, no
+  detected changes) — caught immediately by reviewing the generated file rather than assuming
+  autogenerate had nothing to do.
+- `kb_ingest.py::_split_sections` re-added a `\n\n` separator between a heading and its content
+  even though the regex-split `content` already retained its own leading blank line — produced a
+  harmless quadruple-newline (tolerated by the paragraph splitter's `\n{2,}` regex) but was
+  caught and fixed via a unit test asserting the exact joined string, not just "does it still
+  chunk".
+- A latent, pre-existing cross-event-loop bug in `app.core.redis.get_redis`'s process-level
+  singleton (identical in kind to the one `_fresh_engine_per_test` already fixes for the DB
+  engine) surfaced for the first time under `tests/test_rate_limit.py`, the first tests to make
+  several real sequential Redis round trips across separate test functions — fixed with a new
+  `_fresh_redis_per_test` autouse conftest fixture, same shape as the engine one.
+- `redis-py`'s `Redis.eval` stub has a sync/async overload mypy can't resolve cleanly; switched to
+  `register_script` (which also gets `EVALSHA`-with-fallback for free instead of resending the
+  Lua script body on every call).
+- Found during the human code-review pass, not automated checks: `rate_limit_ai_per_minute` had
+  no lower-bound validation — a misconfigured `RATE_LIMIT_AI_PER_MINUTE=0` would divide by zero
+  inside the token-bucket Lua script (undefined behavior converting `math.huge` to a Redis
+  integer reply) instead of failing fast at startup like every other required setting. Fixed
+  with `Field(gt=0)`.
+- Also found in review: `app.core.idempotency`'s cache key didn't namespace by calling
+  route/feature — harmless today (only `/rag/query` uses it), but a second AI route reusing this
+  generic module with a client-supplied key that happened to collide with another endpoint's for
+  the same user would replay the wrong endpoint's cached response. Fixed with a required `scope`
+  parameter before any second caller could hit it, with a regression test proving two scopes
+  with the identical (user, key) pair never see each other's cached response.
+
+**Deliberate scope decisions:** `KbChunk` as a dedicated table, not `Embedding` (above). Rate
+limiter + idempotency dedup scoped to the one new route (above). Page-level, not per-chunk,
+citations (above). While adding `updated_at` to `ResourceRead` for the sitemap, also added it to
+`CareerPathRead` and fixed `sitemap.ts`'s pre-existing hardcoded `new Date()` for career paths —
+small, directly adjacent, and left the two content types consistent rather than fixing only the
+new one. No chat-history table.
+
+**Verified:** ruff/ruff-format/mypy clean on `apps/api`; pytest 175 passed (39 new — chunker
+boundary/merge/split/overlap cases, the SAVEPOINT re-ingestion race, retrieval's
+published-filter-before-limit ordering with a draft resource proven never-retrieved even when
+closest, the rate limiter's per-user scoping and fail-closed behavior, idempotency reserve/
+replay/fail-open/scope-isolation (a real gap caught in review: the initial design didn't
+namespace cache keys per calling route, a landmine for the next AI route to adopt this module —
+fixed with a required `scope` parameter before it could bite anyone), and the full
+`/api/v1/rag/query` route lifecycle including 429+`Retry-After` and idempotent replay never
+re-calling the LLM). `alembic check` reports no drift; migration
+up/down cycle verified. Frontend `tsc --noEmit` and ESLint clean; live Docker verification of
+`/resources`, `/resources/[slug]` (3 JSON-LD blocks present, markdown rendered, 404 on unknown/
+draft slugs) and `/dashboard/ask` (redirects unauthenticated exactly like every other dashboard
+route); sitemap confirmed to include all 5 resources with real `lastmod` timestamps, and
+`/careers/[slug]` entries now show real historical dates instead of the request time. Real
+10-case evaluation run reported above, including its one honest negative finding.
 
 ## Phase 10 — Learning Roadmap ⬜
 
