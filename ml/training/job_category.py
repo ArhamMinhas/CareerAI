@@ -60,7 +60,9 @@ def train() -> None:
     model_accuracy = accuracy_score(test_df["search_category"], model_pred)
     model_f1 = f1_score(test_df["search_category"], model_pred, average="macro")
 
-    print(f"baseline (keyword title matcher): accuracy={baseline_accuracy:.4f} f1={baseline_f1:.4f}")
+    print(
+        f"baseline (keyword title matcher): accuracy={baseline_accuracy:.4f} f1={baseline_f1:.4f}"
+    )
     print(f"TF-IDF + logistic regression: accuracy={model_accuracy:.4f} f1={model_f1:.4f}")
 
     limitations = (

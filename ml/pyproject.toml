@@ -1,12 +1,32 @@
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# `tests/test_training_pure_functions.py` imports `training.*` as an absolute import (matching
+# how the training modules import each other, e.g. `from training.data import ...`). `python -m
+# pytest` adds the current directory to sys.path automatically; bare `pytest` (what ci.yml's `ml`
+# job actually runs) does not — without this, CI fails with `ModuleNotFoundError: No module
+# named 'training'` even though `python -m pytest` passes locally. Reproduced directly (bare
+# `pytest -v` from ml/) before trusting this fix, not guessed from the traceback alone.
+pythonpath = ["."]
 
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+# Notebooks are exploration only (ML_PIPELINE.md §4: "no inline production logic") and CI
+# deliberately never executes them (ci.yml's ml job comment: "Real model training/notebooks
+# don't run here") — the source of truth for correctness is training/*.py, which every notebook
+# only imports from. Holding generated notebook cells (long embedded strings, cell-by-cell
+# import ordering) to the same line-length/import-sort bar as real source produced noisy,
+# not-actually-actionable findings the first time `ruff check .` ran against this directory.
+extend-exclude = ["notebooks/"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# Embeds real notebook markdown/code cell content as string literals — long by nature (they're
+# rendered prose/code, not logic), and `ruff format` can't rewrap a string's contents without
+# changing its value.
+"scripts/generate_notebooks.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.12"

@@ -44,9 +44,7 @@ def parse_vector_column(series: pd.Series) -> pd.Series:
     `pd.isna()`, not a plain truthiness check: a NULL text column comes back from
     `pandas.read_sql` as float `nan`, which is truthy in Python (`bool(float("nan")) is True`),
     so `if v else None` would pass it straight into `json.loads` and crash on a non-string."""
-    return series.apply(
-        lambda v: None if pd.isna(v) else np.array(json.loads(v), dtype=np.float32)
-    )
+    return series.apply(lambda v: None if pd.isna(v) else np.array(json.loads(v), dtype=np.float32))
 
 
 def fetch_jobs() -> pd.DataFrame:

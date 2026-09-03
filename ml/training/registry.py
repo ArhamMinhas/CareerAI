@@ -21,11 +21,7 @@ MODELS_DIR = Path(__file__).resolve().parent.parent / "models"
 
 def _git_commit() -> str:
     try:
-        return (
-            subprocess.check_output(["git", "rev-parse", "--short", "HEAD"])
-            .decode()
-            .strip()
-        )
+        return subprocess.check_output(["git", "rev-parse", "--short", "HEAD"]).decode().strip()
     except Exception:
         return "unknown"
 

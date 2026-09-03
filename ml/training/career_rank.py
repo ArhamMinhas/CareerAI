@@ -92,9 +92,7 @@ def train() -> None:
             reg.fit(
                 train_rows[["cosine_similarity", "required_skill_count"]], train_rows["coverage"]
             )
-            preds[i] = reg.predict(
-                group.loc[[i], ["cosine_similarity", "required_skill_count"]]
-            )[0]
+            preds[i] = reg.predict(group.loc[[i], ["cosine_similarity", "required_skill_count"]])[0]
         model_rho, _ = spearmanr(preds, group["coverage"])
         model_corrs.append(model_rho if not np.isnan(model_rho) else 0.0)
 

@@ -53,7 +53,9 @@ def _skill_overlap_baseline(df: pd.DataFrame, threshold: float = 60.0) -> dict[s
 
 def train() -> None:
     df = pd.read_csv(CSV_PATH)
-    train_df, test_df = train_test_split(df, test_size=0.2, random_state=42, stratify=df["suitable"])
+    train_df, test_df = train_test_split(
+        df, test_size=0.2, random_state=42, stratify=df["suitable"]
+    )
 
     x_train, y_train = train_df[FEATURES], train_df["suitable"]
     x_test, y_test = test_df[FEATURES], test_df["suitable"]

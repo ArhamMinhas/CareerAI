@@ -36,7 +36,9 @@ def _seniority_bucket(level: str | None) -> str:
 
 def _build_features() -> pd.DataFrame:
     jobs = fetch_jobs()
-    jobs = jobs[jobs["salary_min"].notna() & jobs["salary_max"].notna() & jobs["search_category"].notna()]
+    jobs = jobs[
+        jobs["salary_min"].notna() & jobs["salary_max"].notna() & jobs["search_category"].notna()
+    ]
     jobs = jobs.copy()
     jobs["salary_midpoint"] = (jobs["salary_min"] + jobs["salary_max"]) / 2
     jobs["seniority_bucket"] = jobs["seniority_level"].apply(_seniority_bucket)

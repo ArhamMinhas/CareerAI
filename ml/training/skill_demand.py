@@ -13,7 +13,6 @@ history for this — documented honestly, not silently dropped.
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import mean_absolute_error
 
 from training.data import fetch_skill_demand, fetch_skills
 from training.registry import save_model
