@@ -51,12 +51,18 @@ jobs:
             exit 1
           fi
           if [ "$high" -gt 0 ]; then
-            # As of writing: 3 known HIGH findings (postcss/sharp, bundled inside next@15.5.23)
-            # with no safe fix — `npm audit fix --force` only offers next@16.3.4, which
-            # reproduces the confirmed upstream prerender crash this repo deliberately downgraded
-            # away from (docs/ROADMAP.md Phase 7: vercel/next.js#84994, #86178, #95741). Reported,
-            # not silently ignored — but not a hard failure until either a real fix lands or a
-            # NEW high/critical finding actually needs attention.
+            # sharp's HIGH findings were fixed for real by bumping to next@15.5.25 (a same-major
+            # patch — the Phase 7 upstream crash was 16.x-specific, never seen on 15.x — its
+            # widened optionalDependencies range lets sharp resolve to a safe 0.35.x). postcss
+            # remains: next hard-pins an exact "postcss": "8.4.31" internally, and even a
+            # correctly-configured npm `overrides` entry left that one nested copy in a
+            # persistent "invalid" state across repeated installs (confirmed by direct
+            # reproduction, not assumed) rather than actually upgrading it — a real npm
+            # limitation, not a config mistake. `npm audit fix --force` still only offers
+            # next@16.3.4, which reproduces the confirmed upstream prerender crash this repo
+            # deliberately downgraded away from (docs/ROADMAP.md Phase 7: vercel/next.js#84994,
+            # #86178, #95741). Reported, not silently ignored — but not a hard failure until
+            # either a real fix lands or a NEW high/critical finding actually needs attention.
             echo "::warning::$high known HIGH npm vulnerabilities (see docs/ROADMAP.md Phase 7 for why there's no safe fix yet)"
           fi
 
