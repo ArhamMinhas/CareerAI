@@ -1,8 +1,8 @@
 # CareerAI — ML & Data Science Pipeline
 
-Status: Phase 0 design. Implemented starting Phase 8 (data science foundation), with the
-earlier deterministic scoring formulas in this document used from Phase 4 onward (they don't
-require a trained model, just the data itself). See [ROADMAP.md](./ROADMAP.md).
+Status: §1-2 (deterministic scoring) implemented since Phase 4 — no trained model, just the data
+itself. §3-7 (trained models, pipeline, registry) implemented in Phase 8 — see its ROADMAP.md
+entry for real evaluation results, including the two models that don't beat their baseline yet.
 
 ## 1. Principle: baseline first, model only if it earns its place
 

@@ -457,11 +457,124 @@ Live-verified against the running Docker stack: the raw API and the rendered `/j
 page both show the two real Google postings ranked first; `/jobs/[id]` renders the Apply link,
 Demo-posting badge, and (when signed in) the fit-score card correctly for a real Adzuna posting.
 
-## Phase 8 — Data Science ⬜
+## Phase 8 — Data Science ✅
 
-`ml/` dataset pipeline, EDA notebooks, feature engineering, skill-demand analysis, clustering,
-the six predictive models in [ML_PIPELINE.md §3](./ML_PIPELINE.md#3-trained-ml-models),
-evaluation against baselines.
+`ml/` dataset pipeline, feature engineering, the six predictive models in
+[ML_PIPELINE.md §3](./ML_PIPELINE.md#3-trained-ml-models) evaluated against real baselines, a
+model registry (artifact-layout/version-pin-loading slice of §6 only — drift monitoring and
+retraining triggers stay Phase 14), a thin `apps/api/app/ml` inference wrapper, and live
+integration into six existing surfaces (not just an offline pipeline — expanded scope, confirmed
+before starting).
+
+**Data-quality prep, done first since every model depends on it:** `job_skills` had **0 rows**
+despite 400+ real Adzuna postings from Phase 7 — nothing had ever extracted required skills from
+posting text. New deterministic keyword/synonym matcher
+(`app/services/job_skill_extraction.py`) backfilled 451 real links across 264/553 jobs. Separately,
+`adzuna_ingestion.py` never read Adzuna's real `created` field, so every job's `posted_at` was
+just its ingestion timestamp — no historical spread at all, which would have made model 6
+(skill-demand forecasting) meaningless. Fixed to parse the real field; re-ingestion gave genuine
+spread from April 2025 to August 2026. Also backfilled `skills.category` for the first time ever
+(a Phase 3 column no seed script had populated) with real hand-curated categories, since model
+3's mandated baseline ("manually curated category labels") didn't otherwise exist in the data.
+
+**New tables:** `SkillDemand`, `SalaryData` (docs/DATABASE.md §2.5) — no `region` column for
+either (all data is currently US-only; would fragment an already-thin ~550-job base), weekly
+periods, `growth_rate` left `NULL` rather than computed from a near-zero-N denominator below a
+`MIN_PERIOD_COUNT` floor. Populated by `app/scripts/aggregate_market_data.py`. `MarketTrends`
+deliberately not built — not tied to any of the six named models; revisit in Phase 12.
+
+**`ml/` package**, deliberately isolated from `apps/api`'s dependency tree (separate
+`requirements.txt`, raw SQL via `pandas.read_sql` against `DATABASE_URL_SYNC` rather than
+importing the ORM/FastAPI package — pgvector columns cast to text and parsed via `json.loads`,
+not the `pgvector` adapter). Run via a local venv, not a Docker service — notebooks are
+interactive local-dev tooling. `ml/training/<model>.py` per model, `ml/training/registry.py`
+writes `ml/models/<name>/<version>/model.joblib` + `metadata.json` + a model card. Chose KMeans
+over HDBSCAN and simple linear trend over Prophet (ML_PIPELINE.md frames both pairs as
+interchangeable; Prophet's Stan backend is fragile to install for a series this short anyway).
+
+**The six models, evaluated honestly — two don't beat their baseline, and say so in their model
+cards rather than hiding it (docs/ML_PIPELINE.md §1: "shipped because it beats a baseline," not
+because accuracy looks high in isolation):**
+- **job_suitability**: only 2 real users have a *live* (non-soft-deleted) analyzed resume, not the
+  8 the initial headcount suggested — held out by job, not by user, since a by-user split is
+  meaningless at N=2. XGBoost and a logistic-regression baseline both hit ROC-AUC 1.0 (the label
+  is a near-linear function of the 6 input features) — an honest null result, not a bug. Kept as a
+  nullable supplementary field on `GET /jobs/{id}/match`, never the primary score.
+- **career_recommendation**: only 1 real user has skill-gap coverage against all 8 career paths.
+  Leave-one-path-out Spearman ρ: baseline (cosine similarity alone) 0.83 vs. model 0.52 — the
+  model **loses**. `GET /api/v1/career-recommendations` ranks by the baseline, not the model.
+- **skill_clustering**: real KMeans over the 20 skills with embeddings (of 66 total — Phase 6 only
+  embedded a subset). Adjusted Rand index vs. real curated categories: 0.47 (partial agreement,
+  expected at this N). Backs a "skill family" badge on `/skills/[slug]`, not a second "similar
+  skills" list — redundant with the existing embedding-similarity section at this taxonomy size.
+- **salary_prediction**: real regression over 553 postings' real salary data. MAE 30,231 vs.
+  baseline 31,667 (median by category) — beats it. Backs `/careers/[slug]`'s predicted range.
+- **job_category**: TF-IDF + logistic regression over the 8 real `search_category` labels. F1
+  (macro) 0.976 vs. a keyword-title-matcher baseline's 0.286 — large real improvement. Backs
+  `Job.predicted_category`, a new `/jobs` filter facet.
+- **skill_demand_forecast**: simple linear trend over 19 skills with enough weekly history. MAE
+  7.19 vs. baseline (naive last-period) 8.42 — beats it. Backs a demand-trend chart on
+  `/skills/[slug]`.
+
+**Live integration, one per model** (`GET /jobs/{id}/match` gains `ml_suitability_probability`;
+new `GET /api/v1/career-recommendations`; `GET /skills/{id}` gains `skill_family`/
+`demand_history`/`demand_forecast`; `GET /careers/{slug}` gains `predicted_salary_range`;
+`Job.predicted_category` filters `/jobs`) plus `skill_gap.py`'s `_priority()` blending in real
+`growth_rate` (its own docstring's pre-existing TODO), gated on the same `MIN_PERIOD_COUNT`
+threshold so thin-data skills aren't made noisier, not more useful.
+
+**Real bugs found and fixed during this phase, before it was considered done:**
+- `job_skill_extraction.py`'s word-boundary regex used a lookbehind assertion on *both* sides of
+  the match instead of a lookbehind before and a lookahead after — the trailing boundary checked
+  whether the just-matched term's own last character was non-alphanumeric, which is never true
+  for a real word, so it silently matched nothing (14 links across 553 jobs before the fix, 451
+  after). Confirmed via a live debug session against real job descriptions, not assumed.
+- `ml/training/data.py::parse_vector_column`'s `if v else None` check let a NULL embedding column
+  through to `json.loads` uncaught: `pandas.read_sql` represents a NULL text column as float
+  `nan`, and `bool(float("nan"))` is `True` in Python — fixed with `pd.isna()`.
+- `ml/training/skill_cluster.py` saved cluster-membership skill IDs as `uuid.UUID` objects, but
+  `apps/api/app/ml/inference.py::skill_cluster_family` looks them up by `str` — every lookup
+  silently returned `None` until caught by a live end-to-end check against `/skills/python`.
+- `ml/training/career_rank.py` compared `gap_level` (which comes back from `pd.read_sql` as the
+  raw uppercase Postgres enum value, `"ADEQUATE"`/`"STRONG"`) against a lowercase set — every row's
+  computed "coverage" was silently `0.0`, producing a `ConstantInputWarning` from `scipy.stats
+  .spearmanr` that surfaced the bug rather than a passing-but-meaningless result.
+- `tests/test_profile.py::test_skill_crud_lifecycle_and_taxonomy_reuse` created a real
+  `skills` taxonomy row via `get_or_create_skill` but only ever cleaned up the `user_skills` join
+  row afterward — deleting a user's claim to a skill correctly never deletes the shared taxonomy
+  entry, but the test never deleted its own entry either, permanently leaking one
+  `"Test Skill <hex>"` row into the real dev database on every run. Found by inspecting the skill
+  taxonomy before building the clustering/categorization work on top of it (30 leaked rows
+  discovered and removed); fixed the test's teardown so it can't recur.
+
+**Also discovered and fixed while wiring the live Docker stack for this phase:** the host machine
+went idle for an extended period mid-session; Docker Desktop's containers stayed healthy
+internally but host-to-container port forwarding went stale (`docker exec`-internal requests
+succeeded, `localhost:3000`/`:8000` from the host didn't) — a known WSL2 networking staleness
+issue after sleep/resume, not an app bug. Fixed with the same full WSL2 shutdown + clean Docker
+Desktop relaunch that resolved an unrelated Docker Desktop crash earlier in this project's
+history; a plain container-level restart wasn't sufficient on its own.
+
+**Deliberate scope decisions:** `MarketTrends` deferred to Phase 12 (see above). No new Celery
+task for inference — all six models are cheap/fast enough to run synchronously in the request
+(ML_PIPELINE.md §6). `predict_career_fit_score` (the underperforming model's raw prediction)
+stays available in `app/ml/inference.py` for observability/comparison even though the live
+endpoint doesn't use it to rank. `SalaryData.job_title` stores the normalized `search_category`,
+not the literal raw posting title — exact titles are almost all distinct at ~550 jobs, so a
+percentile over a near-singleton group would be meaningless.
+
+**Verified:** ruff/ruff-format/mypy clean on `apps/api` (99 files) and `ml` (10 files, looser
+`ignore_missing_imports` mypy config — decided up front, not discovered as a red CI run); pytest
+136 passed on `apps/api` (including the `skill_gap.py` growth-rate-blend regression tests) and 10
+passed on `ml` (pure feature-engineering/baseline functions, self-contained fixtures — real model
+training doesn't run in CI). `alembic check` reports no drift; migration up/down cycle verified.
+Frontend `tsc --noEmit` and ESLint clean on every changed/new file. All six models trained
+against real (if in several cases genuinely scarce) data, each evaluation reported honestly in
+its model card including the two that don't beat their baseline. Live-verified against the
+rebuilt Docker stack: `docker exec`-internal API calls confirmed real predictions for all six
+models; the rendered HTML for `/skills/python` and `/careers/backend-engineer` confirmed to
+contain the new "Demand trend"/"Skill family"/"Predicted salary range" sections, not just a
+200 status.
 
 ## Phase 9 — RAG ⬜
 

@@ -56,6 +56,17 @@ class Settings(BaseSettings):
     adzuna_app_id: str = ""
     adzuna_app_key: str = ""
 
+    # Trained ML models (docs/ML_PIPELINE.md §3, §6 — Phase 8). Each is loaded from
+    # ml/models/<name>/<version>/model.joblib by app/ml/registry.py — rollback is a config
+    # change, not a redeploy of training code. Missing artifact/wrong version degrades
+    # gracefully (app/ml/registry.py returns None), never a 500.
+    model_version_job_suitability: str = "1.0.0"
+    model_version_career_recommendation: str = "1.0.0"
+    model_version_skill_clustering: str = "1.0.0"
+    model_version_salary_prediction: str = "1.0.0"
+    model_version_job_category: str = "1.0.0"
+    model_version_skill_demand_forecast: str = "1.0.0"
+
     # CORS
     cors_allowed_origins: str = "http://localhost:3000"
 

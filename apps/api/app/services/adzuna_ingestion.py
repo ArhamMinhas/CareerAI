@@ -1,9 +1,12 @@
+from datetime import datetime
+
 import httpx
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.ml.inference import predict_job_category
 from app.models.company import Company
 from app.models.job import Job
 from app.models.skill import slugify
@@ -87,6 +90,22 @@ def _map_employment_type(item: dict) -> str | None:
     return item.get("contract_type")
 
 
+def _parse_adzuna_created(item: dict) -> datetime | None:
+    """Adzuna's `created` field is the posting's real original date (ISO 8601, `Z`-suffixed
+    UTC) — distinct from when *this app* happened to ingest it. Used for `Job.posted_at` so
+    skill-demand aggregation (docs/ML_PIPELINE.md §3 model 6) has genuine historical spread to
+    work with instead of every job clustering at the ingestion timestamp. Falls back to `None`
+    (letting the column's `server_default=func.now()` apply) if missing or unparseable — an
+    ingestion-time timestamp is a reasonable fallback, not worth failing the whole row over."""
+    raw = item.get("created")
+    if not raw:
+        return None
+    try:
+        return datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
 async def ingest_adzuna_jobs(
     db: AsyncSession, *, what: str, where: str, country: str = "us", max_pages: int = 1
 ) -> int:
@@ -131,6 +150,11 @@ async def ingest_adzuna_jobs(
             job.currency = _COUNTRY_CURRENCY.get(country)
             job.apply_url = item.get("redirect_url")
             job.is_active = True
+            job.search_category = what
+            job.predicted_category = predict_job_category(title=title, description=description)
+            posted_at = _parse_adzuna_created(item)
+            if posted_at is not None:
+                job.posted_at = posted_at
             job.embedding = await embed_text(
                 f"{title} at {company.name}\n\n{description[:_DESCRIPTION_MAX_CHARS]}"
             )

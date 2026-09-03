@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Container } from "@/components/ui/container";
 import { Section } from "@/components/ui/section";
 import { Reveal } from "@/components/motion/reveal";
+import { ClientOnlyChart } from "@/components/charts/client-only-chart";
 import { cardHover, cn } from "@/lib/utils";
 
 const demandData = [
@@ -17,16 +17,6 @@ const demandData = [
 ];
 
 export function MarketIntelligence() {
-  // Recharts (v3) allocates its internal SVG element IDs via React's useId(), and
-  // ResponsiveContainer only measures/renders its chart children once ResizeObserver is
-  // available client-side — so the very first client render mounts a different number of
-  // id-consuming elements than the server did. That offsets every useId() counter for
-  // everything rendered after this section, corrupting unrelated hydration (e.g. the FAQ
-  // accordion's ids) elsewhere on the page. Deferring the real chart to a post-mount render
-  // keeps the server and first-client-render trees identical (both show the placeholder).
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-
   return (
     <Section className="border-t border-border">
       <Container className="grid grid-cols-1 items-center gap-12 lg:grid-cols-2 lg:gap-16">
@@ -44,7 +34,7 @@ export function MarketIntelligence() {
         <Reveal delay={0.1}>
           <div className={cn(cardHover, "rounded-xl border border-border bg-surface p-6")}>
             <div className="h-64 w-full">
-              {mounted && (
+              <ClientOnlyChart>
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={demandData} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
                     <XAxis
@@ -87,7 +77,7 @@ export function MarketIntelligence() {
                     />
                   </LineChart>
                 </ResponsiveContainer>
-              )}
+              </ClientOnlyChart>
             </div>
             <p className="mt-4 text-xs text-muted-foreground">
               Illustrative demand trend, percentage of relevant postings mentioning each skill.

@@ -10,6 +10,7 @@ from app.models.embedding import Embedding
 from app.models.experience import Experience
 from app.models.job import Job, JobSkill
 from app.models.job_match import Application, ApplicationStatus, JobMatch
+from app.models.market_data import SalaryData, SkillDemand
 from app.models.profile import Profile
 from app.models.project import Project
 from app.models.resume import FileType, Resume, ResumeStatus, ResumeVersion
@@ -40,7 +41,9 @@ __all__ = [
     "ResumeStatus",
     "ResumeVersion",
     "Role",
+    "SalaryData",
     "Skill",
+    "SkillDemand",
     "SkillGap",
     "SkillSource",
     "User",

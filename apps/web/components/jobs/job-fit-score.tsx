@@ -106,6 +106,13 @@ export function JobFitScore({ jobId }: { jobId: string }) {
 
       <p className="mt-3 text-sm text-muted-foreground">{fit.explanation}</p>
 
+      {fit.ml_suitability_probability !== null ? (
+        <p className="mt-2 text-xs text-muted-foreground">
+          Model signal: {Math.round(fit.ml_suitability_probability * 100)}% predicted suitability
+          <span className="text-muted-foreground/70"> (supplementary, not the primary score)</span>
+        </p>
+      ) : null}
+
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}

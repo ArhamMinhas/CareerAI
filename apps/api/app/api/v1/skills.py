@@ -6,13 +6,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
 from app.core.security import get_current_user
+from app.ml.inference import forecast_skill_demand, skill_cluster_family
 from app.models.career_path import CareerPath
+from app.models.market_data import SkillDemand
 from app.models.skill import Skill
 from app.models.skill_gap import GapLevel, SkillGap
 from app.models.user import User
 from app.schemas.career_path import CareerPathRead
 from app.schemas.envelope import Envelope, meta_from_request
-from app.schemas.skill import SkillCareerPathRef, SkillDetailRead, SkillRead
+from app.schemas.skill import SkillCareerPathRef, SkillDemandPoint, SkillDetailRead, SkillRead
 from app.schemas.skill_gap import SkillGapItemRead, SkillGapsResponse, SkillGapSummary
 from app.services.career_paths import CareerPathNotFoundError, resolve_career_path
 from app.services.skill_gap import compute_and_store_skill_gaps, get_stored_skill_gaps
@@ -146,4 +148,12 @@ async def get_skill(
     data = SkillDetailRead.model_validate(skill)
     data.related_skills = [SkillRead.model_validate(r) for r in related]
     data.career_paths = [SkillCareerPathRef.model_validate(cp) for cp in career_paths]
+    data.skill_family = skill_cluster_family(str(skill.id))
+    data.demand_forecast = forecast_skill_demand(str(skill.id))
+    demand_result = await db.execute(
+        select(SkillDemand).where(SkillDemand.skill_id == skill.id).order_by(SkillDemand.period)
+    )
+    data.demand_history = [
+        SkillDemandPoint.model_validate(row) for row in demand_result.scalars().all()
+    ]
     return Envelope(data=data, meta=meta_from_request(request))

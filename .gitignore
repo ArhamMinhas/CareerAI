@@ -33,6 +33,13 @@ ml/data/features/*
 !ml/data/features/.gitkeep
 ml/models/*
 !ml/models/.gitkeep
+!ml/models/README.md
+# Model cards (docs/ML_PIPELINE.md §6) are tracked; the artifacts they describe are not — a
+# directory has to be explicitly re-included before git will look inside it for the file-level
+# negations below to take effect.
+!ml/models/*/
+!ml/models/*/README.md
+!ml/models/*/metadata.json
 *.pkl
 *.joblib
 *.onnx

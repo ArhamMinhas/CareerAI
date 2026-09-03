@@ -9,10 +9,34 @@ from sqlalchemy import delete, select
 from app.core.db import AsyncSessionLocal
 from app.models.career_path import CareerPath, CareerPathSkill
 from app.models.skill import Skill
-from app.models.skill_gap import SkillGap
+from app.models.skill_gap import GapLevel, SkillGap
 from app.models.user import Role, User
-from app.services.skill_gap import compute_and_store_skill_gaps
+from app.services.skill_gap import _priority, compute_and_store_skill_gaps
 from app.services.skill_taxonomy import get_or_create_skill
+
+
+def test_priority_without_growth_rate_is_unchanged() -> None:
+    assert _priority(5, True, GapLevel.MISSING) == 20
+    assert _priority(5, True, GapLevel.MISSING, growth_rate=None) == 20
+
+
+def test_priority_blends_positive_growth_rate() -> None:
+    base = _priority(5, True, GapLevel.MISSING)
+    boosted = _priority(5, True, GapLevel.MISSING, growth_rate=1.0)
+    assert boosted == base * 2
+
+
+def test_priority_clamps_extreme_growth_rate() -> None:
+    # 5.0 clamps to the 2.0 ceiling (docs: one noisy week shouldn't dominate weight/core-ness).
+    base = _priority(5, True, GapLevel.MISSING)
+    assert _priority(5, True, GapLevel.MISSING, growth_rate=5.0) == round(base * 3)
+    # -0.9 clamps to the -0.5 floor.
+    assert _priority(5, True, GapLevel.MISSING, growth_rate=-0.9) == round(base * 0.5)
+
+
+def test_priority_ignores_growth_rate_for_covered_gap_levels() -> None:
+    assert _priority(5, True, GapLevel.ADEQUATE, growth_rate=2.0) == 0
+    assert _priority(5, True, GapLevel.STRONG, growth_rate=2.0) == 0
 
 
 @pytest.fixture

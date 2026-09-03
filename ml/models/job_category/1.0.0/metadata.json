@@ -1,0 +1,18 @@
+{
+  "name": "job_category",
+  "version": "1.0.0",
+  "features": [
+    "title",
+    "description (first 1000 chars)"
+  ],
+  "training_window": "400 real Adzuna postings with a known search_category, snapshot",
+  "baseline": {
+    "accuracy": 0.375,
+    "f1_macro": 0.2857142857142857
+  },
+  "metric": "f1_macro",
+  "score": 0.9754784688995215,
+  "limitations": "Trained on 400 of 553 jobs (only those with a real search_category \u2014 the 153 stale jobs from before this backfill, per docs/ROADMAP.md Phase 8's notes, are excluded). 8-class problem; a job could genuinely match more than one query in reality (this label reflects which query Adzuna actually returned it under, not a mutually exclusive ground truth). Predictions for jobs outside the original 8 role queries are unvalidated \u2014 this model has never seen a job title that doesn't already resemble one of the 8 categories.",
+  "retrained_at": "2026-08-24T15:48:12.454445+00:00",
+  "git_commit": "unknown"
+}

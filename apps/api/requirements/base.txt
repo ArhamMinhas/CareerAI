@@ -15,3 +15,11 @@ python-docx>=1.1
 openai>=1.50
 google-genai>=2.0
 pgvector>=0.3
+
+# Trained-model inference only (docs/ML_PIPELINE.md §3, §6 — Phase 8) — lean, no pandas/jupyter/
+# matplotlib here; those are ml/requirements.txt's training-only concern (see that file's
+# docstring for why the two are deliberately kept separate).
+scikit-learn>=1.5
+xgboost>=2.1
+joblib>=1.4
+numpy>=1.26

@@ -1,0 +1,17 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.12"
+# Looser than apps/api/pyproject.toml's strict config — pandas/numpy/xgboost/sklearn have
+# incomplete or lagging type stubs, and ml/ isn't a production deploy target the way apps/api
+# is (docs/ROADMAP.md Phase 8: decided up front, not discovered as a red CI run).
+ignore_missing_imports = true
+exclude = ["notebooks/"]

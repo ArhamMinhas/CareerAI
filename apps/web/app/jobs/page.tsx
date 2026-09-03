@@ -6,6 +6,7 @@ import { Section } from "@/components/ui/section";
 import { Container } from "@/components/ui/container";
 import { Reveal } from "@/components/motion/reveal";
 import { JobSearchInput } from "@/components/jobs/job-search-input";
+import { JobCategoryFilter } from "@/components/jobs/job-category-filter";
 import { JobList } from "@/components/jobs/job-list";
 import { PublicApiError } from "@/lib/public-api";
 import type { Job } from "@/lib/types/job";
@@ -28,7 +29,10 @@ export const metadata: Metadata = {
 
 type JobsEnvelope = { data: Job[]; meta: { next_cursor: string | null } };
 
-async function getJobs(q: string): Promise<{ jobs: Job[]; nextCursor: string | null }> {
+async function getJobs(
+  q: string,
+  category: string,
+): Promise<{ jobs: Job[]; nextCursor: string | null }> {
   try {
     // `fetchPublic` only returns `data`, but this page also needs `meta.next_cursor` for the
     // "Load more" affordance, so this reads the envelope directly rather than going through it.
@@ -36,6 +40,7 @@ async function getJobs(q: string): Promise<{ jobs: Job[]; nextCursor: string | n
       process.env.API_INTERNAL_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
     const params = new URLSearchParams({ limit: "20" });
     if (q) params.set("q", q);
+    if (category) params.set("category", category);
     const response = await fetch(`${apiBase}/api/v1/jobs?${params.toString()}`, {
       next: { revalidate },
     });
@@ -51,10 +56,10 @@ async function getJobs(q: string): Promise<{ jobs: Job[]; nextCursor: string | n
 export default async function JobsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; category?: string }>;
 }) {
-  const { q = "" } = await searchParams;
-  const { jobs, nextCursor } = await getJobs(q);
+  const { q = "", category = "" } = await searchParams;
+  const { jobs, nextCursor } = await getJobs(q, category);
 
   return (
     <SmoothScroll>
@@ -71,16 +76,23 @@ export default async function JobsPage({
                 Every posting here is structured, searchable data — the same postings CareerAI&apos;s
                 hybrid matching engine ranks against your resume once you sign in.
               </p>
-              <div className="mt-8">
+              <div className="mt-8 flex flex-wrap gap-3">
                 <JobSearchInput />
+                <JobCategoryFilter />
               </div>
             </Reveal>
 
             <div className="mt-12">
-              {/* `key={q}` forces a remount on every search change — JobList seeds its job
+              {/* `key` forces a remount on every search/filter change — JobList seeds its job
               list via `useState(initialJobs)`, which only runs on mount, so without this the
               client component would keep showing the first query's results forever. */}
-              <JobList key={q} initialJobs={jobs} initialNextCursor={nextCursor} q={q} />
+              <JobList
+                key={`${q}-${category}`}
+                initialJobs={jobs}
+                initialNextCursor={nextCursor}
+                q={q}
+                category={category}
+              />
             </div>
           </Container>
         </Section>

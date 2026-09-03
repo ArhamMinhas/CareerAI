@@ -15,7 +15,12 @@ _SEMANTIC_FALLBACK_LIMIT = 20
 
 
 async def list_jobs(
-    db: AsyncSession, *, q: str | None, limit: int, cursor: str | None
+    db: AsyncSession,
+    *,
+    q: str | None,
+    limit: int,
+    cursor: str | None,
+    category: str | None = None,
 ) -> tuple[list[Job], str | None]:
     """`GET /api/v1/jobs` (docs/API.md §1's cursor-pagination convention, first real use of it
     — the curated catalogs (careers, skills) are small enough to return unpaginated, but job
@@ -34,13 +39,19 @@ async def list_jobs(
     `_match_rank`) — without this, a query like "google" surfaces any job that merely *mentions*
     Google in its description (e.g. "familiar with Google Cloud") ahead of postings actually at
     Google, which is backwards for what a company-name search is for.
+
+    `category` filters on `Job.predicted_category` (docs/ML_PIPELINE.md §3 model 5, Phase 8) —
+    one of the same 8 known role-query values as `Job.search_category`, computed for every job
+    regardless of which query (if any) originally found it.
     """
     limit = max(1, min(limit, MAX_PAGE_SIZE))
 
     if q:
-        return await _list_jobs_by_keyword(db, q=q, limit=limit, cursor=cursor)
+        return await _list_jobs_by_keyword(db, q=q, limit=limit, cursor=cursor, category=category)
 
     stmt = select(Job).where(Job.is_active.is_(True))
+    if category:
+        stmt = stmt.where(Job.predicted_category == category)
     stmt = _apply_cursor(stmt, cursor)
     stmt = stmt.order_by(Job.posted_at.desc(), Job.id.desc()).limit(limit + 1)
     result = await db.execute(stmt)
@@ -59,7 +70,7 @@ def _match_rank(q: str) -> ColumnElement[int]:
 
 
 async def _list_jobs_by_keyword(
-    db: AsyncSession, *, q: str, limit: int, cursor: str | None
+    db: AsyncSession, *, q: str, limit: int, cursor: str | None, category: str | None = None
 ) -> tuple[list[Job], str | None]:
     rank = _match_rank(q).label("match_rank")
     stmt = (
@@ -74,6 +85,8 @@ async def _list_jobs_by_keyword(
             ),
         )
     )
+    if category:
+        stmt = stmt.where(Job.predicted_category == category)
     if cursor:
         cursor_posted_at, cursor_job_id, cursor_rank = decode_cursor(cursor)
         if cursor_rank is None:
@@ -87,12 +100,13 @@ async def _list_jobs_by_keyword(
     rows = result.all()
     if not rows:
         query_vector = await embed_text(q)
-        semantic_result = await db.execute(
-            select(Job)
-            .where(Job.is_active.is_(True), Job.embedding.is_not(None))
-            .order_by(Job.embedding.cosine_distance(query_vector))
-            .limit(_SEMANTIC_FALLBACK_LIMIT)
+        semantic_stmt = select(Job).where(Job.is_active.is_(True), Job.embedding.is_not(None))
+        if category:
+            semantic_stmt = semantic_stmt.where(Job.predicted_category == category)
+        semantic_stmt = semantic_stmt.order_by(Job.embedding.cosine_distance(query_vector)).limit(
+            _SEMANTIC_FALLBACK_LIMIT
         )
+        semantic_result = await db.execute(semantic_stmt)
         return list(semantic_result.scalars().all()), None
 
     page_rows = rows[:limit]

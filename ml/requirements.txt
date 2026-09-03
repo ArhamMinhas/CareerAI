@@ -1,0 +1,22 @@
+# Deliberately NOT merged into apps/api/requirements/base.txt (docs/ROADMAP.md Phase 8) — these
+# are training/notebook-only tools, never imported by a running API/worker process. Keeping them
+# out of apps/api's dependency tree means the production Docker image never carries pandas/
+# jupyter/matplotlib, and a training-env dependency bump can never break the deployed API.
+#
+# Run in a local venv (or, if a local Python 3.12 isn't available, inside the `api` dev
+# container's own Python 3.12 — see ml/README.md for both paths). Not a Docker/Compose service:
+# notebooks are an interactive local-dev tool, and adding a Jupyter service would mean a new
+# port/healthcheck/CI surface for no production benefit.
+pandas>=2.2
+numpy>=1.26
+scipy>=1.13
+scikit-learn>=1.5
+xgboost>=2.1
+joblib>=1.4
+matplotlib>=3.9
+seaborn>=0.13
+jupyterlab>=4.2
+sqlalchemy>=2.0
+psycopg2-binary>=2.9
+pyarrow>=17.0
+python-dotenv>=1.0

@@ -60,6 +60,10 @@ services:
       - "8000:8000"
     volumes:
       - ../../apps/api:/app
+      # Read-only — app/ml/registry.py (Phase 8) loads trained artifacts from here. ml/'s own
+      # training/notebook dependencies stay out of this image entirely; only the artifacts this
+      # mount exposes are needed at inference time. See ml/README.md for the training workflow.
+      - ../../ml/models:/app/ml_models:ro
     depends_on:
       postgres:
         condition: service_healthy

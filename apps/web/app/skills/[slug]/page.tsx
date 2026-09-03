@@ -9,6 +9,7 @@ import { Container } from "@/components/ui/container";
 import { ButtonLink } from "@/components/ui/button";
 import { Reveal } from "@/components/motion/reveal";
 import { BreadcrumbJsonLd } from "@/components/seo/breadcrumb-json-ld";
+import { SkillDemandChart } from "@/components/skills/skill-demand-chart";
 import { fetchPublic, PublicApiError } from "@/lib/public-api";
 import { cardHoverMotion, cn } from "@/lib/utils";
 import type { Skill } from "@/lib/types/profile";
@@ -101,6 +102,11 @@ export default async function SkillDetailPage({
               {skill.category ? (
                 <p className="text-sm font-medium text-primary">{skill.category}</p>
               ) : null}
+              {skill.skill_family && skill.skill_family !== skill.category ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Skill family: {skill.skill_family}
+                </p>
+              ) : null}
               <h1 className="mt-3 text-4xl font-semibold tracking-tighter text-foreground md:text-6xl">
                 {skill.name}
               </h1>
@@ -137,6 +143,24 @@ export default async function SkillDetailPage({
                       {careerPath.title}
                     </Link>
                   ))}
+                </div>
+              </Reveal>
+            ) : null}
+
+            {skill.demand_history.length > 0 ? (
+              <Reveal delay={0.08} className="mt-14">
+                <h2 className="text-sm font-medium text-foreground">Demand trend</h2>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Real weekly count of open postings mentioning {skill.name}
+                  {skill.demand_forecast !== null ? ", with a forecast for next week" : ""}.
+                </p>
+                <div
+                  className={cn(
+                    cardHoverMotion,
+                    "mt-4 rounded-xl border border-border bg-surface p-6"
+                  )}
+                >
+                  <SkillDemandChart history={skill.demand_history} forecast={skill.demand_forecast} />
                 </div>
               </Reveal>
             ) : null}

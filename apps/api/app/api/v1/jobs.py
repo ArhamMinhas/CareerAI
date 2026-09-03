@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_db
 from app.core.pagination import InvalidCursorError
 from app.core.security import get_current_user
+from app.ml.inference import predict_job_suitability
 from app.models.user import User
 from app.schemas.envelope import Envelope, meta_from_request
 from app.schemas.job import JobDetailRead, JobRead
@@ -32,13 +33,21 @@ async def get_jobs(
     q: str | None = Query(default=None, max_length=255),
     limit: int = Query(default=DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
     cursor: str | None = Query(default=None),
+    category: str | None = Query(
+        default=None,
+        max_length=64,
+        description=(
+            "Filter by Job.predicted_category (docs/ML_PIPELINE.md §3 model 5, Phase 8) — one "
+            "of the known role-query values, e.g. 'backend engineer'."
+        ),
+    ),
 ) -> Envelope[list[JobRead]]:
     """Public, unauthenticated — backs the indexable `/jobs` listing. `q` does a keyword-then-
     semantic search (see `app.services.jobs.list_jobs`); the semantic fallback path returns an
     unpaginated single page, so `next_cursor` is only ever set when the keyword path (or the
     unfiltered listing) produced the page."""
     try:
-        jobs, next_cursor = await list_jobs(db, q=q, limit=limit, cursor=cursor)
+        jobs, next_cursor = await list_jobs(db, q=q, limit=limit, cursor=cursor, category=category)
     except InvalidCursorError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return Envelope(
@@ -83,7 +92,22 @@ async def get_job_fit(
     if job is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found.")
     score, breakdown, explanation = await compute_job_fit(db, user=user, job=job)
+    suitability = predict_job_suitability(
+        {
+            "semantic_similarity": breakdown.semantic_similarity.score,
+            "skill_overlap": breakdown.skill_overlap.score,
+            "experience_match": breakdown.experience_match.score,
+            "education_match": breakdown.education_match.score,
+            "preference_match": breakdown.preference_match.score,
+            "location_match": breakdown.location_match.score,
+        }
+    )
     return Envelope(
-        data=JobFitRead(match_score=score, score_breakdown=breakdown, explanation=explanation),
+        data=JobFitRead(
+            match_score=score,
+            score_breakdown=breakdown,
+            explanation=explanation,
+            ml_suitability_probability=suitability,
+        ),
         meta=meta_from_request(request),
     )

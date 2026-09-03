@@ -149,6 +149,35 @@ export default async function CareerDetailPage({
                     ))}
                   </ul>
                 </div>
+
+                {careerPath.predicted_salary_range ? (
+                  <div className="mt-6 rounded-xl border border-border bg-surface p-6">
+                    <h2 className="text-sm font-medium text-foreground">Predicted salary range</h2>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Assumes {careerPath.predicted_salary_range.assumed_scope}.
+                    </p>
+                    <div className="mt-4 flex items-baseline justify-between gap-2">
+                      <div className="text-center">
+                        <p className="text-lg font-semibold tracking-tight text-foreground">
+                          ${Math.round(careerPath.predicted_salary_range.p25 / 1000)}k
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">p25</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-2xl font-semibold tracking-tight text-primary">
+                          ${Math.round(careerPath.predicted_salary_range.p50 / 1000)}k
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">p50</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-lg font-semibold tracking-tight text-foreground">
+                          ${Math.round(careerPath.predicted_salary_range.p75 / 1000)}k
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">p75</p>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
               </Reveal>
             </div>
 

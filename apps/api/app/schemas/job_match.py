@@ -49,3 +49,11 @@ class JobFitRead(BaseModel):
     match_score: float
     score_breakdown: JobMatchBreakdown
     explanation: str
+    ml_suitability_probability: float | None = Field(
+        default=None,
+        description=(
+            "Supplementary signal from the trained job_suitability model (docs/ML_PIPELINE.md "
+            "§3, Phase 8) — not a replacement for match_score. `null` when the model artifact "
+            "isn't available."
+        ),
+    )

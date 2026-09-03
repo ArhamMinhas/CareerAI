@@ -1,0 +1,16 @@
+{
+  "name": "skill_demand_forecast",
+  "version": "1.0.0",
+  "features": [
+    "skill_demand.demand_count (weekly time series)"
+  ],
+  "training_window": "19 skills with >= 3 weekly periods",
+  "baseline": {
+    "naive_last_period_mae": 8.421052631578947
+  },
+  "metric": "mae",
+  "score": 7.1883914331282766,
+  "limitations": "Only 19 of 45 skills with any demand data have >= 3 weekly periods to backtest against \u2014 most of the taxonomy has too short a real history yet for this model to say anything about. Weekly buckets span a few months of real Adzuna posting dates (not months of live production traffic), so this evaluates a real but early-stage trend, not a mature forecast.",
+  "retrained_at": "2026-08-24T15:59:46.418414+00:00",
+  "git_commit": "unknown"
+}

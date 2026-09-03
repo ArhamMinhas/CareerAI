@@ -35,6 +35,11 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload
 FROM deps AS production
 RUN useradd --create-home --shell /bin/false --uid 1000 appuser
 COPY --chown=appuser:appuser apps/api /app
+# app/ml/registry.py (Phase 8) reads trained artifacts from here — docker-compose.yml mounts
+# the same path for local dev instead; this COPY is what a real (non-Compose) production build
+# needs, since it has no compose-level volume injection. If ml/models/ is empty (no models
+# trained yet), this just creates an empty directory — registry.py degrades gracefully.
+COPY --chown=appuser:appuser ml/models /app/ml_models
 USER appuser
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \

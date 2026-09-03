@@ -1,0 +1,8 @@
+# CI-only tooling for ml/ — mirrors apps/api/requirements/dev.txt's base+dev split. Notebooks
+# and real model training don't run in CI (docs/ROADMAP.md Phase 8: slow, and training needs
+# real seeded DB data CI's ephemeral Postgres won't have) — only the pure feature-engineering/
+# baseline functions in ml/training/*.py get real CI coverage, via ml/tests/.
+-r requirements.txt
+pytest>=8.3
+ruff>=0.7
+mypy>=1.13

@@ -39,6 +39,14 @@ class Job(UUIDPKMixin, TimestampMixin, Base):
     demo rows don't collide with each other under Postgres's NULLs-are-distinct semantics.
     `apply_url` is the real external application link a job board API provides; without one
     (demo postings), the frontend simply doesn't render an "Apply" button.
+
+    `search_category`/`predicted_category` — docs/ML_PIPELINE.md §3 model 5 (Phase 8):
+    `search_category` is the real, independent ground-truth label — which of
+    `app/scripts/ingest_adzuna_jobs.py`'s known role-query strings Adzuna actually matched this
+    job against. `predicted_category` is the trained classifier's output over that same 8-value
+    label space, computed once at ingestion/backfill time (not per-request) so it's available
+    even for postings ingested outside those 8 queries. Both nullable — demo postings and
+    not-yet-classified rows have neither.
     """
 
     __tablename__ = "jobs"
@@ -77,6 +85,8 @@ class Job(UUIDPKMixin, TimestampMixin, Base):
     source: Mapped[str | None] = mapped_column(String(32), nullable=True)
     external_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     apply_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    search_category: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    predicted_category: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     company: Mapped["Company"] = relationship(lazy="selectin")
     required_skills: Mapped[list["JobSkill"]] = relationship(

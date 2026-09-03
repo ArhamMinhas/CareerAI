@@ -1,0 +1,20 @@
+{
+  "name": "salary_prediction",
+  "version": "1.0.0",
+  "features": [
+    "search_category",
+    "seniority_bucket",
+    "remote",
+    "required_skill_count"
+  ],
+  "training_window": "400 real Adzuna postings, snapshot",
+  "baseline": {
+    "mae": 31667.422875,
+    "rmse": 41988.26111481087
+  },
+  "metric": "mae",
+  "score": 30230.824660156253,
+  "limitations": "Trained on 400 real postings across 8 categories; salary is the midpoint of the posted min/max range, not a real point observation. `seniority_level` is unpopulated for most postings (Adzuna doesn't supply a clean field for it), so most rows fall into the 'unspecified' seniority bucket \u2014 per-band residuals: {'unspecified': 30230.824660156253}. No `region` feature (all postings are currently US-only).",
+  "retrained_at": "2026-08-24T15:46:47.440802+00:00",
+  "git_commit": "unknown"
+}

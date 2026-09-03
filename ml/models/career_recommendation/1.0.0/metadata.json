@@ -1,0 +1,17 @@
+{
+  "name": "career_recommendation",
+  "version": "1.0.0",
+  "features": [
+    "cosine_similarity",
+    "required_skill_count"
+  ],
+  "training_window": "1 user(s) x 8 career paths, snapshot",
+  "baseline": {
+    "spearman_rho_cosine_only": 0.8333333333333335
+  },
+  "metric": "spearman_rho",
+  "score": 0.523809523809524,
+  "limitations": "Only 1 real user(s) have skill-gap coverage computed against every published career path \u2014 a ranking model fundamentally needs a candidate ranked against multiple items, so this is a leave-one-path-out evaluation on that single real candidate's 8 real (career_path, coverage) pairs, not a validated multi-user recommender. Spearman correlation, model vs. baseline: 0.5238 vs 0.8333. Retrain once more users have queried skill gaps against multiple career paths.",
+  "retrained_at": "2026-08-24T15:55:21.373390+00:00",
+  "git_commit": "unknown"
+}

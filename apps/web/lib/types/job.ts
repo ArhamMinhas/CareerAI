@@ -72,6 +72,9 @@ export type JobFit = {
   match_score: number;
   score_breakdown: JobMatchBreakdown;
   explanation: string;
+  /** Supplementary trained-model signal (docs/ML_PIPELINE.md §3, Phase 8) — `null` when the
+   * model artifact isn't available. Not a replacement for `match_score`. */
+  ml_suitability_probability: number | null;
 };
 
 export type ApplicationStatus = "saved" | "applied" | "interviewing" | "offer" | "rejected";

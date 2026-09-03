@@ -4,6 +4,7 @@ from app.api.v1 import (
     applications,
     auth,
     career_goals,
+    career_recommendations,
     careers,
     companies,
     health,
@@ -21,6 +22,7 @@ api_router.include_router(profile.router)
 api_router.include_router(career_goals.router)
 api_router.include_router(skills.router)
 api_router.include_router(careers.router)
+api_router.include_router(career_recommendations.router)
 api_router.include_router(resumes.router)
 api_router.include_router(companies.router)
 api_router.include_router(jobs.router)

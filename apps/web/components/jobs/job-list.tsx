@@ -10,10 +10,12 @@ export function JobList({
   initialJobs,
   initialNextCursor,
   q,
+  category = "",
 }: {
   initialJobs: Job[];
   initialNextCursor: string | null;
   q: string;
+  category?: string;
 }) {
   const [jobs, setJobs] = useState(initialJobs);
   const [nextCursor, setNextCursor] = useState(initialNextCursor);
@@ -25,6 +27,7 @@ export function JobList({
     try {
       const params = new URLSearchParams({ limit: "20", cursor: nextCursor });
       if (q) params.set("q", q);
+      if (category) params.set("category", category);
       const response = await apiFetch<Job[]>(`/api/v1/jobs?${params.toString()}`, {
         method: "GET",
       });

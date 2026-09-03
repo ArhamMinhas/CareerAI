@@ -4,6 +4,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { SkillConstellation } from "@/components/dashboard/skill-constellation";
 import { SkillGapCard } from "@/components/dashboard/skill-gap-card";
 import { JobMatchesCard } from "@/components/dashboard/job-matches-card";
+import { CareerRecommendationsCard } from "@/components/dashboard/career-recommendations-card";
 import { ResumeScoreCard } from "@/components/resume/resume-score-card";
 import { cardHover, cn } from "@/lib/utils";
 
@@ -40,6 +41,7 @@ export default function DashboardPage() {
           <ResumeScoreCard />
           <SkillGapCard />
           <JobMatchesCard />
+          <CareerRecommendationsCard />
           <EmptyState
             icon={MessagesSquare}
             title="Interview readiness"

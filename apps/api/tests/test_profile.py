@@ -1,6 +1,10 @@
 import uuid
 
 from httpx import AsyncClient
+from sqlalchemy import delete as sa_delete
+
+from app.core.db import AsyncSessionLocal
+from app.models.skill import Skill
 
 
 async def test_get_profile_lazily_creates_it(authed_client: AsyncClient) -> None:
@@ -143,3 +147,11 @@ async def test_skill_crud_lifecycle_and_taxonomy_reuse(authed_client: AsyncClien
 
     listing_after = await authed_client.get("/api/v1/profile/skills")
     assert all(row["id"] != user_skill_id for row in listing_after.json()["data"])
+
+    # Deleting a user_skills row only removes this user's claim, never the shared taxonomy
+    # entry `get_or_create_skill` created (correct — other users may reference it). This test
+    # is the only writer of the "Test Skill <hex>" row it made, so it's safe to remove here —
+    # without this, every run permanently leaks one row into the real skill taxonomy.
+    async with AsyncSessionLocal() as db:
+        await db.execute(sa_delete(Skill).where(Skill.name == unique_skill))
+        await db.commit()

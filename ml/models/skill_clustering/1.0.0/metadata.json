@@ -1,0 +1,16 @@
+{
+  "name": "skill_clustering",
+  "version": "1.0.0",
+  "features": [
+    "skill embedding (1536-dim)"
+  ],
+  "training_window": "20 skills with an embedding, snapshot",
+  "baseline": {
+    "adjusted_rand_index_vs_curated_categories": 0.46856119937346163
+  },
+  "metric": "silhouette_score",
+  "score": 0.09293611347675323,
+  "limitations": "Trained on only 20 of 66 skills \u2014 the taxonomy's embedding coverage is thin (Phase 6 only backfilled a curated subset). Adjusted Rand index vs. curated categories is 0.4686 (1.0 = perfect agreement, 0.0 = no better than random) \u2014 clusters partially but don't fully recover the hand-curated categories, which is expected at N=20 with 6 clusters. Retrain once embedding coverage widens.",
+  "retrained_at": "2026-08-24T17:33:23.093928+00:00",
+  "git_commit": "unknown"
+}
