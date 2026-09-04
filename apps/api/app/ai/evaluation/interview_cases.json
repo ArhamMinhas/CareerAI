@@ -1,0 +1,20 @@
+[
+  {
+    "mode": "technical",
+    "question": "Given an array of integers, how would you find two numbers that add up to a specific target? Walk through your approach and its time complexity.",
+    "answers": {
+      "strong": "Use a hash map: iterate through the array once, and for each number check whether target minus that number is already in the map. If it is, return the pair; otherwise insert the current number into the map and continue. This runs in O(n) time and O(n) space, which beats the O(n^2) brute-force approach of checking every pair.",
+      "weak": "You could probably loop through the array a couple times and check some combinations. Maybe sort it first? Not totally sure what the time complexity would end up being.",
+      "off_topic": "I really enjoyed my last vacation to the mountains. The weather was great and I did some hiking with friends over the long weekend."
+    }
+  },
+  {
+    "mode": "behavioral",
+    "question": "Tell me about a time you disagreed with a teammate on a technical decision. How did you resolve it?",
+    "answers": {
+      "strong": "On a project last year, a teammate wanted to use a synchronous queue that I felt would create a bottleneck under load. Instead of arguing opinions, I proposed a quick spike comparing both approaches under realistic traffic. We ran it together, saw the async approach cut p99 latency by about 40%, and the team adopted it based on that data rather than either of our preferences.",
+      "weak": "Sometimes people disagree on stuff. I usually just go along with whatever the team decides, it's easier that way I guess.",
+      "off_topic": "My favorite food is pizza, though I try to eat healthy most days. I also like trying new restaurants on weekends."
+    }
+  }
+]

@@ -31,8 +31,8 @@ const navItems = [
   { href: "/jobs", label: "Jobs", icon: Briefcase },
   { href: "/dashboard/matches", label: "Matches", icon: Sparkles },
   { href: "/dashboard/applications", label: "Applications", icon: ClipboardList },
-  { href: "/roadmap", label: "Roadmap", icon: Map },
-  { href: "/interviews", label: "Interviews", icon: MessagesSquare },
+  { href: "/dashboard/roadmap", label: "Roadmap", icon: Map },
+  { href: "/dashboard/interviews", label: "Interviews", icon: MessagesSquare },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

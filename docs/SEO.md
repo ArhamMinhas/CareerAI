@@ -24,7 +24,7 @@ correctly by Google/Bing, rendered properly when shared, and fast enough to rank
 | `/jobs`, `/jobs/[id]` | Yes — the highest-value programmatic SEO surface (real, unique, frequently-updated content) | ISR — see §5 | `jobs` |
 | `/companies/[id]` | Yes | ISR revalidate | `companies` |
 | `/resources/[slug]` | Yes | SSG + ISR revalidate | `resources` (same content that feeds RAG — see [DATABASE.md §2.6](./DATABASE.md#26-public-content--seo)) |
-| `/dashboard`, `/resume`, `/analytics`, `/interviews`, `/settings`, and the rest of the authenticated app (`/profile`, `/skills` *app view*, `/career`, `/matches`, `/roadmap`, `/interviews/[id]`) | **No** — private, personalized, behind auth | `noindex`, excluded from sitemap |
+| The authenticated app — everything under `/dashboard/*` (`/dashboard/resume`, `/dashboard/skill-gap`, `/dashboard/ask`, `/dashboard/roadmap`, `/dashboard/matches`, ...), not the flat `/resume`/`/roadmap`/etc. paths this row originally listed (see `docs/UI_ARCHITECTURE.md §1`'s note) | **No** — private, personalized, behind auth | `noindex`, excluded from sitemap |
 | `/admin/*` | **No** | `noindex`, excluded from sitemap, also blocked in `robots.txt` |
 | `/api/*` | **No** | Blocked in `robots.txt`; not HTML anyway |
 
@@ -78,20 +78,19 @@ export async function generateMetadata({ params }): Promise<Metadata> {
 User-agent: *
 Allow: /
 Disallow: /dashboard
-Disallow: /profile
-Disallow: /resume
-Disallow: /skills
-Disallow: /career
-Disallow: /matches
-Disallow: /roadmap
-Disallow: /interviews
-Disallow: /analytics
-Disallow: /settings
 Disallow: /admin
 Disallow: /api
 
 Sitemap: https://careerai.example.com/sitemap.xml
 ```
+
+The real, shipped `app/robots.ts` (Phase 2+) uses a single blanket `Disallow: /dashboard` rather
+than this section's original per-feature list — every authenticated dashboard feature shipped so
+far (`/dashboard/skill-gap`, `/dashboard/ask`, `/dashboard/roadmap`, `/dashboard/interviews`, ...)
+lives under that one prefix, so one rule already covers all of them; `/career`, `/matches`,
+`/roadmap`, `/interviews`,
+`/analytics`, `/settings` as separate top-level disallow entries were never real paths to begin
+with (see the route-map note in `docs/UI_ARCHITECTURE.md §1`).
 
 ### 2.3 Sitemap (`app/sitemap.ts`)
 

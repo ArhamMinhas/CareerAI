@@ -70,10 +70,14 @@ apps/api/app/ai/prompts/
   resume_extraction/v1.md
   resume_extraction/v2.md      # future
   career_explanation/v1.md     # future
-  interview_question_gen/v1.md # future
-  interview_evaluation/v1.md   # future
-  rag_answer/v1.md             # future
+  interview_evaluation/v1.md   # shipped Phase 11
+  rag_answer/v1.md             # shipped Phase 9
 ```
+
+No `interview_question_gen/` prompt exists, and none is planned — "generate a question" turned
+out to be a fully deterministic retrieval-and-rank operation over a curated
+`interview_question_bank`, never an LLM decision (§8's Interview Agent guardrail: "fixed question
+categories"). Only *evaluating* a submitted answer needed a real LLM call.
 
 Prompts are versioned files, not inline strings (spec §52). Each prompt file has: system
 instructions above a `---` separator's worth of human-readable metadata (output schema,
@@ -156,11 +160,15 @@ Every agent step logs to `ai_conversations` for evaluation and cost tracking.
 
 ```
 ai/evaluation/
-  resume_cases.json
-  career_cases.json
-  interview_cases.json
-  rag_cases.json
-  run_eval.py
+  resume_cases.json    # future
+  career_cases.json    # future
+  interview_cases.json # shipped Phase 11, real cases
+  rag_cases.json       # shipped Phase 9, real cases
+  run_eval.py          # shipped Phase 9 — RAG only, per its own docstring
+  run_interview_eval.py # shipped Phase 11 — a sibling runner, not a shared one; each
+                         # feature's harness checks a narrower, feature-specific proxy
+                         # (RAG: citation accuracy/groundedness; interviews: does scoring
+                         # rank strong > weak > off-topic), not a single generic rubric
 ```
 
 Each case: input, expected properties (not necessarily exact-match — e.g. "must include skill

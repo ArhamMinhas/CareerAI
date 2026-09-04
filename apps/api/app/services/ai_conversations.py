@@ -15,6 +15,7 @@ class AIFeature(enum.StrEnum):
     CAREER_ADVISOR = "career_advisor"
     INTERVIEW = "interview"
     RAG_CHAT = "rag_chat"
+    LEARNING_ROADMAP = "learning_roadmap"
 
 
 async def log_conversation(

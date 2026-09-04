@@ -8,9 +8,24 @@ from app.models.company import Company
 from app.models.education import Education
 from app.models.embedding import Embedding
 from app.models.experience import Experience
+from app.models.interview import (
+    Interview,
+    InterviewAnswer,
+    InterviewEvaluation,
+    InterviewMode,
+    InterviewQuestion,
+    InterviewQuestionBank,
+    InterviewStatus,
+)
 from app.models.job import Job, JobSkill
 from app.models.job_match import Application, ApplicationStatus, JobMatch
 from app.models.kb_chunk import KbChunk
+from app.models.learning_path import (
+    LearningPath,
+    LearningPathItem,
+    LearningPathStatus,
+    RoadmapPhase,
+)
 from app.models.market_data import SalaryData, SkillDemand
 from app.models.profile import Profile
 from app.models.project import Project
@@ -18,6 +33,8 @@ from app.models.resource import Resource
 from app.models.resume import FileType, Resume, ResumeStatus, ResumeVersion
 from app.models.skill import Proficiency, Skill, SkillSource, UserSkill
 from app.models.skill_gap import GapLevel, SkillGap
+from app.models.skill_learning_resource import LearningResourceType, SkillLearningResource
+from app.models.skill_prerequisite import SkillPrerequisite
 from app.models.user import Role, User
 
 __all__ = [
@@ -33,10 +50,21 @@ __all__ = [
     "Experience",
     "FileType",
     "GapLevel",
+    "Interview",
+    "InterviewAnswer",
+    "InterviewEvaluation",
+    "InterviewMode",
+    "InterviewQuestion",
+    "InterviewQuestionBank",
+    "InterviewStatus",
     "Job",
     "JobMatch",
     "JobSkill",
     "KbChunk",
+    "LearningPath",
+    "LearningPathItem",
+    "LearningPathStatus",
+    "LearningResourceType",
     "Proficiency",
     "Profile",
     "Project",
@@ -44,11 +72,14 @@ __all__ = [
     "Resume",
     "ResumeStatus",
     "ResumeVersion",
+    "RoadmapPhase",
     "Role",
     "SalaryData",
     "Skill",
     "SkillDemand",
     "SkillGap",
+    "SkillLearningResource",
+    "SkillPrerequisite",
     "SkillSource",
     "User",
     "UserSkill",

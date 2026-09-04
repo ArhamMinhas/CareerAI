@@ -27,21 +27,15 @@ export class ApiError extends Error {
   }
 }
 
-type Envelope<T> = { data: T; meta: { request_id: string | null; next_cursor: string | null } };
+type EnvelopeMeta = { request_id: string | null; next_cursor: string | null };
+type Envelope<T> = { data: T; meta: EnvelopeMeta };
 type ErrorEnvelope = {
   error: { code: string; message: string; details: unknown; request_id: string | null };
 };
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 
-/**
- * Authenticated fetch wrapper for `/api/v1/*` — attaches the current Supabase session's
- * bearer token, unwraps the `{ data, meta }` envelope (docs/API.md §2), and throws `ApiError`
- * with the server's stable `code` on failure so callers can branch on it rather than parsing
- * prose. Browser-only (reads the session via the browser Supabase client) since every current
- * caller is a Client Component driving a form.
- */
-export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function rawFetch<T>(path: string, init: RequestInit): Promise<Envelope<T>> {
   const {
     data: { session },
   } = await supabase.auth.getSession();
@@ -61,7 +55,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   });
 
   if (response.status === 204) {
-    return undefined as T;
+    return { data: undefined as T, meta: { request_id: null, next_cursor: null } };
   }
 
   const body = await response.json();
@@ -78,5 +72,29 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
     );
   }
 
-  return (body as Envelope<T>).data;
+  return body as Envelope<T>;
+}
+
+/**
+ * Authenticated fetch wrapper for `/api/v1/*` — attaches the current Supabase session's
+ * bearer token, unwraps the `{ data, meta }` envelope (docs/API.md §2), and throws `ApiError`
+ * with the server's stable `code` on failure so callers can branch on it rather than parsing
+ * prose. Browser-only (reads the session via the browser Supabase client) since every current
+ * caller is a Client Component driving a form.
+ */
+export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const envelope = await rawFetch<T>(path, init);
+  return envelope.data;
+}
+
+/**
+ * Same as `apiFetch`, but also returns `meta` — for callers that need `next_cursor` to drive
+ * real cursor pagination (docs/API.md §1) rather than the "did this page come back full-sized"
+ * length heuristic `job-list.tsx` uses.
+ */
+export async function apiFetchWithMeta<T>(
+  path: string,
+  init: RequestInit = {}
+): Promise<{ data: T; meta: EnvelopeMeta }> {
+  return rawFetch<T>(path, init);
 }

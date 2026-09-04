@@ -6,7 +6,7 @@ personalized learning roadmap, AI mock interviews, and career/job-market analyti
 combination of deterministic algorithms, trained ML models, retrieval (RAG), and LLM reasoning,
 never a bare "ask the LLM for everything" wrapper.
 
-**Status: Phase 9 — RAG ✅.** Monorepo, Next.js 15 + FastAPI apps, PostgreSQL +
+**Status: Phase 11 — AI Interview ✅.** Monorepo, Next.js 15 + FastAPI apps, PostgreSQL +
 pgvector via Docker Compose, CI, the landing page/dashboard/theme/SEO plumbing from Phase 2,
 the profile system (education, experience, projects, skills, career goals) from Phase 3, email/
 password + Google OAuth and real resume intelligence (async PDF/DOCX upload, NLP + LLM
@@ -22,8 +22,14 @@ forecasting) evaluated against real baselines and wired live into `/dashboard/ma
 `/careers/[slug]`, and `/skills/[slug]` from Phase 8, and now a full RAG pipeline — knowledge-base
 chunking/embedding, retrieval-grounded generation with source citations, a real per-user Redis
 rate limiter and Idempotency-Key dedup, and public `/resources`/`/resources/[slug]` article pages
-that double as the RAG retrieval corpus (`/dashboard/ask`) — from Phase 9. See
-[docs/ROADMAP.md](docs/ROADMAP.md) for the full phase-by-phase status.
+that double as the RAG retrieval corpus (`/dashboard/ask`) — from Phase 9, and now a
+personalized learning roadmap — deterministic prerequisite sequencing (a real topological sort,
+never LLM-decided) over curated skill resources and project suggestions, progress tracking, and
+one bounded LLM narrative call, at `/dashboard/roadmap` — from Phase 10, and now AI mock
+interviews — a curated, embedding-ranked question bank across 6 modes (technical, behavioral, HR,
+system design, ML, data science), turn-by-turn structured LLM evaluation against per-mode
+rubrics, session history, and real analytics aggregates, at `/dashboard/interviews` — from
+Phase 11. See [docs/ROADMAP.md](docs/ROADMAP.md) for the full phase-by-phase status.
 
 ## Why this project exists
 

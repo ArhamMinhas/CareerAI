@@ -238,10 +238,15 @@ erDiagram
 
 ```mermaid
 erDiagram
-    LEARNING_PATHS ||--o{ LEARNING_RESOURCES : contains
+    LEARNING_PATHS ||--o{ LEARNING_PATH_ITEMS : sequences
+    SKILLS ||--o{ LEARNING_PATH_ITEMS : references
+    SKILLS ||--o{ SKILL_PREREQUISITES : requires
+    SKILLS ||--o{ SKILL_LEARNING_RESOURCES : has
+    RESOURCES ||--o{ SKILL_LEARNING_RESOURCES : linked_from
     USERS ||--o{ LEARNING_PATHS : follows
     USERS ||--o{ INTERVIEWS : takes
     INTERVIEWS ||--o{ INTERVIEW_QUESTIONS : contains
+    INTERVIEW_QUESTION_BANK ||--o{ INTERVIEW_QUESTIONS : sourced_from
     INTERVIEW_QUESTIONS ||--o| INTERVIEW_ANSWERS : answered_by
     INTERVIEW_ANSWERS ||--o| INTERVIEW_EVALUATIONS : scored_by
     USERS ||--o{ AI_CONVERSATIONS : has
@@ -250,44 +255,68 @@ erDiagram
         uuid id PK
         uuid user_id FK
         text target_role
-        jsonb phases
+        text overview
         enum status "active|completed|abandoned"
+        timestamptz generated_at
+        timestamptz deleted_at
     }
-    LEARNING_RESOURCES {
+    LEARNING_PATH_ITEMS {
         uuid id PK
         uuid learning_path_id FK
         uuid skill_id FK
+        enum phase "foundations|core|advanced"
+        int order_index
+        boolean completed
+        timestamptz completed_at
+    }
+    SKILL_PREREQUISITES {
+        uuid id PK
+        uuid skill_id FK
+        uuid requires_skill_id FK
+    }
+    SKILL_LEARNING_RESOURCES {
+        uuid id PK
+        uuid skill_id FK
+        uuid resource_id FK "nullable"
         text title
-        text url
+        text url "nullable"
         text resource_type "course|article|project|docs"
         int estimated_hours
-        boolean completed
+        int order_index
+    }
+    INTERVIEW_QUESTION_BANK {
+        uuid id PK
+        text mode "technical|behavioral|hr|system_design|ml|data_science"
+        text category
+        text question_text
+        vector embedding "nullable"
     }
     INTERVIEWS {
         uuid id PK
         uuid user_id FK
         text mode "technical|behavioral|hr|system_design|ml|data_science"
-        text target_role
+        text target_role "nullable, plain free text"
         enum status "in_progress|completed|abandoned"
-        numeric overall_score
+        numeric overall_score "nullable until completed"
+        timestamptz deleted_at
     }
     INTERVIEW_QUESTIONS {
         uuid id PK
         uuid interview_id FK
-        text question_text
-        text category
+        uuid bank_question_id FK "nullable"
+        text question_text "denormalized copy"
+        text category "denormalized copy"
         int order_index
-        vector embedding
     }
     INTERVIEW_ANSWERS {
         uuid id PK
-        uuid question_id FK
+        uuid question_id FK "unique"
         text answer_text
         int response_time_seconds
     }
     INTERVIEW_EVALUATIONS {
         uuid id PK
-        uuid answer_id FK
+        uuid answer_id FK "unique"
         numeric correctness_score
         numeric depth_score
         numeric communication_score
@@ -296,7 +325,7 @@ erDiagram
     AI_CONVERSATIONS {
         uuid id PK
         uuid user_id FK
-        text feature "resume_analysis|career_advisor|interview|rag_chat"
+        text feature "resume_analysis|career_advisor|interview|rag_chat|learning_roadmap"
         text model
         int prompt_tokens
         int completion_tokens
@@ -304,6 +333,62 @@ erDiagram
         jsonb request_meta
     }
 ```
+
+**Deviation from this section's original design, decided during Phase 10 implementation:**
+`LEARNING_RESOURCES` (the sketch above at the top of this file's history) has been split into
+three tables, and `LEARNING_PATHS.phases` is no longer a `jsonb` blob:
+
+- `LEARNING_PATH_ITEMS` replaces the old flat `LEARNING_RESOURCES` for what a roadmap actually
+  sequences — one row per **skill**, not per resource. `completed`/`completed_at` live here (the
+  skill level), not on a resource row: some skills have no curated resource at all, which would
+  make them permanently unmarkable-complete under the original resource-level completion model.
+  `phase`/`order_index` are computed by a deterministic topological sort over
+  `SKILL_PREREQUISITES` (docs/AI_ARCHITECTURE.md §8's Learning Planner guardrail — the LLM never
+  decides sequencing), fully recomputed on every regenerate; only `completed`/`completed_at`
+  survive from the prior row.
+- `SKILL_PREREQUISITES` and `SKILL_LEARNING_RESOURCES` are new, **shared curated reference
+  tables** (like `CAREER_PATH_SKILLS`), not per-user data — a resource/prerequisite is authored
+  once per skill and looked up by every user's roadmap, never duplicated per `LEARNING_PATH`.
+  This also resolves a real inconsistency in the original sketch: it implied
+  `LEARNING_RESOURCES` had an FK to `RESOURCES`, but its own entity definition never actually
+  had one. `SKILL_LEARNING_RESOURCES.resource_id` is that FK now, nullable — set only when a
+  step's content genuinely is one of the curated `/resources/[slug]` articles (Phase 9), with
+  `url` covering the far more common external-official-docs case.
+- `LEARNING_PATHS` gets `deleted_at` (soft-deleted like `APPLICATIONS`, with the same partial
+  unique index over non-deleted `(user_id, target_role)` pairs) since it carries genuine
+  user-authored progress, unlike `SKILL_GAPS`/`JOB_MATCHES`'s cached/recomputed category — see
+  `app/models/learning_path.py`'s docstring for the full reasoning.
+
+**Deviation from this section's original design, decided during Phase 11 implementation:**
+
+- A new `INTERVIEW_QUESTION_BANK` table exists that the original sketch never had. `embedding`
+  lives there, not on `INTERVIEW_QUESTIONS` as the original sketch put it — this is curated
+  reference content the selection algorithm ranks against (like `RESOURCES.embedding`), authored
+  once and shared across every user's sessions, not a per-session artifact that would need its
+  own embedding call on every question asked. `INTERVIEW_QUESTIONS.question_text`/`category` are
+  denormalized copies taken from the bank row at selection time (`bank_question_id` nullable FK,
+  `ON DELETE SET NULL`, kept for traceability only) so a session's historical record stays stable
+  even if the bank's curated content is later edited.
+- `INTERVIEWS` gets `deleted_at` (soft-deleted, same reasoning as `LEARNING_PATHS` above — Phase
+  11's scope explicitly includes "history," so this is durable user-authored content, not
+  cached/computed output) but, unlike `LEARNING_PATHS`/`APPLICATIONS`, **no partial unique index**:
+  a user legitimately runs many practice sessions for the same `mode`+`target_role`, so there's no
+  natural key re-creation-after-delete needs to protect. `user_id` gets a plain btree index
+  (§3 below); history-list pagination sorts on `(created_at, id)` at query time rather than
+  needing its own composite index at this data volume.
+- `INTERVIEWS.target_role` is nullable, plain free text — not required to resolve against
+  `CAREER_PATHS` the way `SKILL_GAPS`/`LEARNING_PATHS.target_role` are. Those two features
+  literally cannot compute without a curated `CareerPath` match; interview practice has real value
+  even for a role with no curated catalog entry, so forcing a 404 here would block practice
+  sessions for niche titles for no benefit. Resolution against `CAREER_PATHS` is attempted
+  best-effort, only to feed question-selection ranking when it happens to succeed — resolution
+  failure never blocks session creation. See `app/models/interview.py`'s `Interview` docstring for
+  the full reasoning.
+- `INTERVIEW_ANSWERS.question_id` and `INTERVIEW_EVALUATIONS.answer_id` are both `UNIQUE` — the
+  1:1 relationship the original sketch's `o|` notation already implied, but which now also doubles
+  as the concurrency guard's DB-level backstop (two racing submissions for the same question can't
+  both insert; see `app/services/interviews.py::record_answer`'s pre-check + caught
+  `IntegrityError` → 409).
 
 ### 2.5 Market Intelligence & System
 
@@ -360,7 +445,7 @@ erDiagram
     }
     EMBEDDINGS {
         uuid id PK
-        text owner_type "resume|job|skill|learning_resource|interview_question|career_path|resource|kb_chunk"
+        text owner_type "resume|job|skill|interview_question|career_path|resource|kb_chunk"
         uuid owner_id
         vector embedding
         text model
@@ -479,6 +564,11 @@ erDiagram
 | `ai_conversations` | btree on `(user_id, created_at desc)`, btree on `(feature, created_at)` | cost/usage dashboards |
 | `audit_logs` | btree on `(user_id, created_at desc)` | admin audit trail |
 | `embeddings` | ivfflat on `embedding`, btree on `(owner_type, owner_id)` | RAG retrieval |
+| `interview_question_bank` | btree on `mode` | selection algorithm's per-mode candidate scan (no ivfflat on `embedding` — ranking runs in Python over the small per-mode candidate set `app/services/interviews.py::select_next_question` already fetched, not a SQL `<=>` query, at this table's curated ~30-row scale) |
+| `interviews` | btree on `user_id` | ownership checks + history-list pagination |
+| `interview_questions` | unique btree on `(interview_id, order_index)`, btree on `interview_id` | ordering + per-session lookups |
+| `interview_answers` | unique btree on `question_id` | 1:1 enforcement + concurrency-guard backstop |
+| `interview_evaluations` | unique btree on `answer_id` | 1:1 enforcement + concurrency-guard backstop |
 
 ## 4. Data integrity rules
 

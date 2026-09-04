@@ -714,15 +714,230 @@ route); sitemap confirmed to include all 5 resources with real `lastmod` timesta
 `/careers/[slug]` entries now show real historical dates instead of the request time. Real
 10-case evaluation run reported above, including its one honest negative finding.
 
-## Phase 10 — Learning Roadmap ⬜
+## Phase 10 — Learning Roadmap ✅
 
 Personalized roadmap generation, prerequisite sequencing, resources, project suggestions,
-progress tracking.
+progress tracking. Given the thinnest scope sentence of any phase in this doc, the design work
+(chunk storage was Phase 9's open design question; here it was "what does 'prerequisite
+sequencing' actually mean when no prerequisite data exists anywhere") happened up front in
+planning, validated by a Plan-agent critique pass before any code was written.
 
-## Phase 11 — AI Interview ⬜
+**Deterministic sequencing, not LLM-decided — the core of this phase**
+(`app/services/learning_roadmap.py`): a real Kahn's-algorithm topological sort over a new
+`skill_prerequisites` graph, restricted to the user's current `MISSING`/`WEAK` skills for the
+target role (reusing `get_stored_skill_gaps`/`compute_and_store_skill_gaps` directly — no gap
+logic duplicated), ties broken by each gap's already-computed `priority`. Cycle-defensive: a real
+cycle can't crash a request, it falls back to priority-only ordering for the unresolved skills
+with a logged warning. Results are bucketed into up to 3 fixed, position-based phases
+(Foundations/Core/Advanced) — purely positional, never content-aware. This satisfies
+`docs/AI_ARCHITECTURE.md §8`'s Learning Planner guardrail exactly: "must respect prerequisite
+ordering computed deterministically," not decided by the one LLM call this phase makes.
 
-Interview generation, session flow, answer evaluation, scoring, feedback, history, analytics —
-per [AI_ARCHITECTURE.md §8](./AI_ARCHITECTURE.md#8-agents) (Interview Agent).
+**Two new curated reference tables** (`skill_prerequisites`, `skill_learning_resources`), shared
+across all users like `CareerPathSkill` — never duplicated per roadmap. Covers the same 20
+skills `seed_career_paths.py` already curates `seo_summary` for (a deliberate scope decision, not
+an oversight — most of the ~100+ skill names across seeded career paths get neither a
+prerequisite edge nor a resource, and the sequencing algorithm's priority-only fallback handles
+that gracefully). 8 real, honest prerequisite edges (Deep Learning←Machine Learning,
+Kubernetes←Docker, Next.js←React, etc.) — deliberately not padded to hit a round number. 30
+resources across those 20 skills, every URL a stable official-docs domain
+(docs.python.org, react.dev, kubernetes.io, ...), never a course-platform link whose stability
+can't be verified — confirmed for real: **2 of the 20 initially-authored URLs (scikit-learn's
+tutorial page, AWS's getting-started page) were genuinely dead (404) and were caught only by
+actually curling every one and fixed with real, verified replacements** before this phase was
+considered done.
+
+**One bounded LLM call** (`app/ai/roadmap_overview.py`) generates a short narrative paragraph
+from the already-sequenced skill list — same "explains a decision it didn't make" guardrail as
+the Career Advisor agent. New `AIFeature.LEARNING_ROADMAP`. Free-text, synchronous in-request
+(no Celery task — smaller than a RAG answer, same threshold reasoning as `rag_answer.py`).
+
+**Deliberate structural deviation from `docs/DATABASE.md`'s never-implemented sketch**
+(recorded there with the same annotation style as Phase 9's `KbChunk` note): a normalized
+`learning_path_items` table (one row per skill) replaces the sketch's flat, resource-level
+`LEARNING_RESOURCES.completed` — some skills have zero curated resources, which would make them
+permanently unmarkable-complete under that model. `SKILL_LEARNING_RESOURCES.resource_id` is a
+nullable FK to Phase 9's `resources` table, resolving a real inconsistency the sketch itself had
+(§2.6 implied that FK existed; §2.4's own entity definition never had it).
+
+**Real cost controls — the second real consumer of Phase 9's infrastructure**, closing a gap
+that phase explicitly flagged as deferred: `POST /learning-roadmap/generate` reuses
+`app/core/rate_limit.py`/`app/core/idempotency.py` verbatim (`scope="learning_roadmap"`),
+proving that module's `scope` parameter (added during Phase 9's own review) actually works for a
+second caller, not just in theory. `GET /learning-roadmap` deliberately does **not**
+auto-generate on first read the way `GET /skills/gaps` does — that route's computation is free;
+this route's has a real LLM cost component, and auto-firing a paid call from an
+unprotected GET would reopen the exact gap Phase 9 closed for RAG.
+
+**Real routes** (`/api/v1/learning-roadmap*`, flat-hyphenated — matching the real
+`career-recommendations`/`career-goals` convention, not `docs/API.md`'s aspirational,
+confirmed-unimplemented `/career/roadmap` nesting, now fixed in that doc): `GET` (404 before
+generation), `POST /generate` (the only AI-triggering route), `PATCH /items/{id}` (ownership-
+checked completion toggle, auto-transitions `LearningPath.status` between `active`/`completed`),
+`DELETE` (soft-delete, the real justification for `LearningPath` carrying `SoftDeleteMixin` at
+all — without it, that mixin would be dead infrastructure with an unreachable partial unique
+index, per the Plan-agent critique that caught this before implementation).
+
+**Frontend**: `/dashboard/roadmap` (fixing the sidebar's dead `{ href: "/roadmap" }` link to the
+real, already-shipped `/dashboard/*` convention — `docs/UI_ARCHITECTURE.md`/`docs/SEO.md` updated
+to match, the same real-vs-documented mismatch Phase 9 found and fixed for its own nav entry), a
+`RoadmapCard` on `/dashboard`, phases rendered as sections with a completion checkbox per skill
+(reusing the one existing checkbox precedent, `career-goals-section.tsx`), and an explicit,
+non-degenerate "no curated resources yet" empty state per item — the common case for most
+real-world roadmaps at this seed-data scope, not an edge case.
+
+**Real bugs found and fixed during this phase, before it was considered done:**
+- The Plan-agent critique pass (before any code was written) caught three real design bugs
+  ahead of time rather than after: (1) a naive "preserve unchanged items, patch the delta" upsert
+  would have left stale `phase`/`order_index` values on previously-existing items after a
+  regenerate that reshuffled the sequence — fixed by capturing prior `completed` state, wiping,
+  and fully re-deriving every item on every `/generate` call; (2) the parent `learning_paths`
+  row's get-or-create needed its own SAVEPOINT race-safety, not just the child items' — a
+  double-click on "Regenerate" could otherwise crash on either level; (3) `SoftDeleteMixin` with
+  no `DELETE` route would have been unreachable dead infrastructure. All three verified fixed by
+  real concurrent-call and regenerate-preserves-progress regression tests, not just reasoned
+  about.
+- Found during the human code-review pass, after implementation, not by automated checks:
+  `app/ai/roadmap_overview.py` only caught `AIExtractionError` — but the provider layer only
+  wraps its own SDK's exception hierarchy into that type, so a lower-level failure (a raw network
+  error, an SDK bug) would have propagated straight through and broken this module's entire
+  reason for existing ("generation succeeds whether or not the narrative does"). Widened to
+  `except Exception`, with a regression test using a fake provider that raises a plain
+  `ConnectionError` (not `AIExtractionError`) to prove the fix actually works, not just that the
+  happy-path error type is handled.
+- Two dead resource URLs (scikit-learn, AWS) found and fixed by actually curling all 20 real
+  seeded links — see above.
+
+**Deliberate scope decisions:** 20 curated skills, not full taxonomy coverage (above). No
+separate evaluation harness like Phase 9's `rag_cases.json` — the probabilistic surface here is
+one advisory paragraph, not fact-bearing citations; real pytest coverage of the deterministic
+algorithm (topo sort, cycle fallback, phase bucketing, regenerate-preserves-progress, two-level
+race safety) is the right verification method for this phase's actual risk surface. No chat/
+history table. `ABANDONED` status exists in the enum (matching the original design doc) but has
+no transition path yet — reserved for a future explicit action, not used by anything this phase
+ships.
+
+**Verified:** ruff/ruff-format/mypy clean on `apps/api`; pytest 209 passed (34 new — topological
+sort across a linear chain/diamond/disconnected-graph/real-cycle, phase bucketing at N=0 through
+10, the capture-wipe-rewrite regenerate logic proving progress survives a reshuffled sequence,
+two-level SAVEPOINT concurrent-`/generate` race safety, status auto-transition both directions,
+PATCH ownership enforcement, `DELETE` + regenerate-after-delete, the full route lifecycle
+including 429+`Retry-After` and idempotent replay, and the specific regression above proving
+`/generate` never fails even when the overview call raises an unexpected exception type).
+`alembic check` reports no drift; migration up/down cycle verified. Frontend `tsc --noEmit` and
+ESLint clean; live Docker verification of `/dashboard/roadmap` and `/dashboard` (both redirect
+unauthenticated exactly like every other dashboard route, no compile errors). A real end-to-end
+generation run against the seeded `ai-engineer` career path (real skill-gap computation, real
+topological sort, a real LLM overview call) produced a correctly-ordered 12-skill sequence
+respecting every real prerequisite edge (Python before Machine Learning before MLOps; SQL before
+Vector Databases), 11/12 skills with curated resources, and a grounded, non-hallucinated overview
+paragraph — reported here as the real, honest result it was, not a synthetic example.
+
+## Phase 11 — AI Interview ✅
+
+A curated `interview_question_bank` (30 real, authored questions across 6 modes — technical,
+behavioral, HR, system design, ML, data science — 5 per mode, each tagged with a real category),
+a fully deterministic selection algorithm (no LLM call: prefers a category not yet used this
+session, falls back to allowing repeats once exhausted, ranks remaining candidates by cosine
+similarity against a best-effort-resolved target-role embedding when available), one real LLM
+call for turn-by-turn structured answer evaluation (`correctness_score`/`depth_score`/
+`communication_score` + written feedback, per-mode rubric guidance across all 6 modes), session
+lifecycle (`in_progress` → `completed` with a deterministically-computed `overall_score`),
+history (cursor-paginated), real analytics aggregates, and a live `/dashboard/interviews` +
+`/dashboard/interviews/[id]` frontend — per
+[AI_ARCHITECTURE.md §8](./AI_ARCHITECTURE.md#8-agents) (Interview Agent).
+
+**Deviation from the original design, decided during implementation (docs/DATABASE.md §2.4 has
+the full annotation):** a new `INTERVIEW_QUESTION_BANK` table exists that the original sketch
+never had — `embedding` lives there, not on the per-session `INTERVIEW_QUESTIONS` row, since this
+is curated reference content the selection algorithm ranks against (like `RESOURCES.embedding`),
+authored once and shared across every user's sessions, not a per-session artifact needing its own
+embedding call on every question asked. `question_text`/`category` are denormalized copies on
+`INTERVIEW_QUESTIONS` so a session's historical record stays stable even if the bank's curated
+content is later edited. `Interview.target_role` is a genuinely optional, plain free-text string
+— a deliberate deviation from `SkillGap`/`LearningPath.target_role`'s "must resolve to a real
+`CareerPath`" convention, since interview practice has real value even for a role with no curated
+catalog entry; resolution against `CareerPath` is attempted best-effort, only to feed ranking,
+and never blocks session creation. `Interview` is soft-deleted like `Application`/`LearningPath`
+but, unlike either, has **no partial unique index** — a user legitimately runs many practice
+sessions for the same `mode`+`target_role`, so there's no natural key to protect.
+`GET /api/v1/interviews/{id}` folds the original design's separate `GET .../evaluation` into one
+response (matching the "one response has everything" pattern RAG/roadmap already use). §7 of
+`docs/API.md` is also rewritten here — it previously claimed both RAG and interview evaluation
+stream via SSE, which was never true of either (both were live-verified to ship as one
+non-streaming JSON response, same rate-limit/Idempotency-Key reasoning both phases share); this
+had been an unresolved self-contradiction since Phase 9.
+
+- The Plan-agent critique pass (before any code was written) caught several real design gaps
+  ahead of time rather than after: (1) the route's Idempotency-Key alone doesn't stop two
+  genuinely concurrent *different* requests without a shared key (duplicate tabs) — fixed by
+  adding an application-level pre-check + a caught `IntegrityError` → 409 in
+  `record_answer` itself, on top of (not instead of) idempotency; (2) `CareerPath.embedding` is
+  nullable in the real model, so ranking needed an explicit "no embedding → no ranking" fallback
+  rather than assuming it always exists; (3) `target_role` was initially going to require
+  resolving against the curated `CareerPath` catalog like `SkillGap`/`LearningPath` do, which
+  would have 404'd practice sessions for any niche/uncatalogued title for no real benefit — made
+  a genuinely optional plain string instead; (4) `GET /interviews` needed cursor pagination from
+  the start (an unbounded feed of practice sessions, not a small curated list), not the
+  unpaginated shape `GET /resumes` uses; (5) one generic evaluation rubric across all 6 modes
+  would have been incoherent for `behavioral`/`hr` (no single "correct" answer the way there is
+  for a technical question) — six distinct, substantive rubric blurbs were authored instead. All
+  five verified fixed by real tests, not just reasoned about (the embedding-ranking test
+  explicitly covers the null-embedding fallback path; the concurrency guard has a real
+  `asyncio.gather` race test — see Verified below).
+- Found during the human code-review pass, after implementation, not by automated checks:
+  `get_analytics`'s per-dimension averages (`average_correctness_score`/`depth`/`communication`)
+  were computed over *every* answered question across *all* of the user's sessions, including
+  ones still `in_progress` — silently inconsistent with `total_completed`/`average_overall_score`,
+  which were both correctly scoped to `COMPLETED` sessions only, and with the function's own
+  docstring ("real SQL aggregates over the current user's own completed sessions only"). A
+  lingering unfinished session (e.g. abandoned mid-way, since `ABANDONED` has no transition path
+  yet — see below) would silently skew these three averages forever. Fixed by adding the same
+  `Interview.status == COMPLETED` filter already applied to the other two queries. Verified with a
+  real regression test that fails without the fix (confirmed by temporarily reverting it: a
+  completed session averaging 90 got dragged to 76.67 by one in-progress session's correctness=10
+  answer) and passes with it.
+
+**Deliberate scope decisions:** `ABANDONED` exists in the `InterviewStatus` enum (matching the
+original design doc) but has no transition path yet — same treatment `LearningPathStatus` got in
+Phase 10, for the same reason: reserved for a future explicit action, not used by anything this
+phase ships. No dedicated `interview_question_bank.embedding` ivfflat index — ranking runs in
+Python over the small per-mode candidate set already fetched, not a SQL `<=>` query, at this
+table's curated ~30-row scale (documented in `docs/DATABASE.md §3`). The evaluation harness
+(`app/ai/evaluation/interview_cases.json` + `run_interview_eval.py`) is explicitly scoped to a
+directional, mechanically-checkable proxy — does scoring rank a strong answer above a weak answer
+above an off-topic answer, and is feedback always non-empty — not a claim about rubric/feedback
+quality, the same boundary `rag_cases.json`/`run_eval.py` already draw for their own class of
+check.
+
+**Verified:** ruff/ruff-format/mypy clean on `apps/api`; pytest 250 passed (41 new — question
+selection covering category-rotation, the repeat-once-exhausted fallback exercised for real,
+embedding-ranking with and without a resolved target role, bank-exhaustion; session creation,
+answer recording, and completion with a real computed `overall_score`; a real concurrent-call
+race test on answer submission via `asyncio.gather` proving the two-layer SAVEPOINT +
+`IntegrityError`-catch guard actually works, not just reasoned about; cursor pagination
+round-tripping; analytics aggregation correctness including the regression above; the full route
+lifecycle including 429+`Retry-After`, idempotent replay never re-evaluating, a 409 on a
+genuinely-concurrent duplicate submission, and a 502 confirming evaluation failure is never
+swallowed the way `learning_roadmap`'s overview failure is). `alembic check` reports no drift;
+migration up/down/up cycle passed cleanly on the first attempt (no leftover-Postgres-enum-type
+issue this time, unlike Phase 9/10, which both hit that bug live). Frontend `tsc --noEmit` and
+ESLint clean; existing Vitest suite unaffected; live Docker verification of
+`/dashboard/interviews` and `/dashboard/interviews/[id]` (both redirect unauthenticated exactly
+like every other dashboard route, both compiled with no errors after the same Turbopack
+new-route-folder restart Phase 9/10 also needed), and `/dashboard` showing the new
+`InterviewCard`. The evaluation harness (`python -m app.ai.evaluation.run_interview_eval`) was
+run for real against the live LLM: both cases (technical, behavioral) correctly ranked
+strong > weak > off-topic correctness scores (100/10/0 and 90/20/0), with non-empty feedback on
+every answer. A real end-to-end session was run against the live stack (not a synthetic example):
+a TECHNICAL session targeting the seeded `ai-engineer` career path, answered with genuinely
+varying quality per question — the real LLM scored a vague one-line answer at
+correctness=10/depth=5, and a substantive answer explaining a hash-map two-sum solution at
+correctness=100/depth=70, with specific, non-generic feedback on each — and completed with a real
+`overall_score` of 52.67. **Honest gap:** no browser-automation tool was available in this
+session to click through the live `/dashboard/interviews` UI with a real signed-in user the way
+Phase 9's Playwright pass did; verification for the frontend stopped at compile-clean +
+correct-redirect, not a real rendered click-through.
 
 ## Phase 12 — Career Analytics ⬜
 

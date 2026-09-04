@@ -10,18 +10,20 @@ endpoints it needs (see [ROADMAP.md](./ROADMAP.md)).
 - **Auth:** `Authorization: Bearer <supabase JWT>` on every route except `/auth/*` and public
   landing-page content endpoints. Verified via FastAPI dependency (`get_current_user`), which
   loads the local `users` row (for role/permissions) after validating the JWT signature.
-- **Content type:** `application/json` except file upload (`multipart/form-data`) and SSE
-  streaming responses (AI chat/interview feedback), which use `text/event-stream`.
+- **Content type:** `application/json` except file upload (`multipart/form-data`). No endpoint
+  currently streams via SSE — see §7 for why RAG/interview evaluation ship as plain JSON instead.
 - **Pagination:** cursor-based for feeds that grow unbounded (jobs, notifications, audit logs):
   `?limit=20&cursor=<opaque>` → response includes `next_cursor`. Offset-based
   (`?page=1&page_size=20`) only for small, stable admin lists.
 - **Filtering/sorting:** `?filter[field]=value` for filters, `?sort=-created_at,title` for
   sorting (leading `-` = descending). Documented per-endpoint, not a generic passthrough to SQL.
 - **Idempotency:** mutating AI-triggering endpoints (`/resumes/{id}/analyze`,
-  `/interviews/{id}/answer`, `/rag/query`) accept an `Idempotency-Key` header to avoid
-  double-billing on client retries. `/rag/query` (Phase 9) is the first to back it with a real
-  `SET NX` reservation + cached-response replay, not just a required-header check — see
-  `app/core/idempotency.py`.
+  `/interviews/{id}/answer`, `/rag/query`, `/learning-roadmap/generate`) accept an
+  `Idempotency-Key` header to avoid double-billing on client retries. `/rag/query` (Phase 9) was
+  the first to back it with a real `SET NX` reservation + cached-response replay, not just a
+  required-header check — see `app/core/idempotency.py`; `/learning-roadmap/generate` (Phase 10)
+  and `/interviews/{id}/answer` (Phase 11) each reuse the same module with their own `scope`.
+  `POST /interviews` itself needs no Idempotency-Key — it makes no LLM call.
 
 ## 2. Standard response envelope
 
@@ -54,8 +56,14 @@ endpoints it needs (see [ROADMAP.md](./ROADMAP.md)).
 ## 4. Rate limiting
 
 Token-bucket per user (Redis-backed): general API 120 req/min, AI-triggering endpoints
-(resume analyze, career analyze, interview answer, RAG chat) 20 req/min, stricter still on
-unauthenticated endpoints. `429` responses include `Retry-After`.
+(resume analyze, career analyze, interview answer, RAG chat, learning-roadmap generation)
+20 req/min, stricter still on unauthenticated endpoints. `429` responses include `Retry-After`.
+Real (not just documented) for `/rag/query` (Phase 9) and `/learning-roadmap/generate`
+(Phase 10) via `app/core/rate_limit.py`, both real per-user token buckets. Everything else in
+this section — the general 120 req/min limit, and resume-analyze/career-analyze/interview-answer
+specifically — remains aspirational: `rate_limit_default_per_minute`/`rate_limit_ai_per_minute`
+are defined in config but only the two routes above actually enforce anything. Phase 15
+("Production Hardening") owns the general, all-routes rollout.
 
 ## 5. Endpoint catalog
 
@@ -169,11 +177,34 @@ precedent; add filtering if/when the catalog's real size ever justifies it.
 
 ### Career
 ```
-POST   /api/v1/career/analyze              -> recommendation engine (rule + ML + embeddings)
-GET    /api/v1/career/recommendations
-GET    /api/v1/career/roadmap
-POST   /api/v1/career/roadmap/generate
-PATCH  /api/v1/career/roadmap/items/{id}   -> mark complete, etc.
+POST   /api/v1/career/analyze              -> still unbuilt; a distinct future concept from
+                                               career-recommendations below, not a duplicate
+```
+The four routes this section originally sketched under `/career/*` (`recommendations`,
+`roadmap`, `roadmap/generate`, `roadmap/items/{id}`) were never implemented at that path — real
+routers in this codebase are consistently flat-hyphenated (`career-goals`, `career-recommendations`,
+`careers`), never nested under `/career/`. `GET /api/v1/career-recommendations` shipped in Phase
+8 (see its own section below); the roadmap routes shipped in Phase 10 as `/api/v1/learning-roadmap*`
+(see "Learning Roadmap" below) — same convention mismatch Phase 9 already found and fixed for
+its own `/career/roadmap` sibling, `GET /api/v1/career-recommendations`.
+
+### Learning Roadmap (Phase 10)
+```
+GET    /api/v1/learning-roadmap             -> stored roadmap for ?target_role=; 404 if none
+                                               generated yet (no auto-generate-on-read, unlike
+                                               GET /skills/gaps — this route has a real LLM cost
+                                               component, see POST /generate below)
+POST   /api/v1/learning-roadmap/generate    -> sequences the user's skill gaps deterministically
+                                               (docs/AI_ARCHITECTURE.md §8's Learning Planner),
+                                               then a bounded LLM overview call that can fail
+                                               without failing the request; Idempotency-Key
+                                               required, real per-user rate limit (429 +
+                                               Retry-After) — reuses the same infra Phase 9 built
+                                               for /rag/query
+PATCH  /api/v1/learning-roadmap/items/{id}  -> toggle one step's completion; ownership-checked,
+                                               no LLM/rate-limit involved
+DELETE /api/v1/learning-roadmap             -> soft-deletes the active roadmap for ?target_role=,
+                                               so a fresh POST /generate can start over
 ```
 
 ### Jobs
@@ -187,13 +218,34 @@ GET    /api/v1/applications
 PATCH  /api/v1/applications/{id}
 ```
 
-### Interviews
+### Interviews (Phase 11)
 ```
-POST   /api/v1/interviews                  -> create session (mode, target_role)
-GET    /api/v1/interviews/{id}
-POST   /api/v1/interviews/{id}/answer      -> submit answer, streams evaluation (SSE)
-GET    /api/v1/interviews/{id}/evaluation
-GET    /api/v1/interviews                  -> history
+POST   /api/v1/interviews                  -> create session (mode, optional target_role) + first
+                                               question. No LLM call (pure retrieval from a
+                                               curated question bank) — no Idempotency-Key
+                                               required, unlike every other AI-triggering POST
+                                               below
+GET    /api/v1/interviews                  -> history, cursor-paginated (§1) — a user can start
+                                               unboundedly many practice sessions
+GET    /api/v1/interviews/analytics        -> real aggregates over the user's own completed
+                                               sessions: total completed, average overall/per-
+                                               dimension scores, last-5 trend. Registered before
+                                               /{id} for the same route-ordering reason as
+                                               /skill-gaps' /gaps
+GET    /api/v1/interviews/{id}             -> full session detail: every question asked so far
+                                               with its answer/evaluation if already submitted.
+                                               Folds the separate GET .../evaluation this section
+                                               originally sketched into this one response — the
+                                               split only made sense paired with the SSE-streaming
+                                               answer route it sat next to, which was never built
+                                               (see §7)
+POST   /api/v1/interviews/{id}/answer      -> the one AI-triggering route. Idempotency-Key
+                                               required, real per-user rate limit (429 +
+                                               Retry-After) — reuses the same infra Phase 9 built
+                                               for /rag/query. Evaluates the answer, persists it,
+                                               and either creates the next question or completes
+                                               the session with a real overall_score
+DELETE /api/v1/interviews/{id}             -> soft-delete
 ```
 
 ### RAG / AI chat (Phase 9)
@@ -246,8 +298,17 @@ in `packages/types/domain/` and are reconciled with generated types once endpoin
 
 ## 7. Streaming responses
 
-AI chat and interview evaluation stream via Server-Sent Events so the UI can render tokens as
-they arrive rather than waiting on a full completion — critical for perceived performance on
-LLM-backed endpoints. Each SSE event is a typed JSON payload (`{"type": "token" | "source" |
-"done" | "error", ...}`), not raw provider output, so the frontend never depends on a specific
-LLM provider's stream shape.
+Neither RAG (`POST /api/v1/rag/query`, Phase 9) nor interview-answer evaluation
+(`POST /api/v1/interviews/{id}/answer`, Phase 11) actually streams — this section originally
+sketched both as Server-Sent Events, but each shipped instead as a single non-streaming JSON
+response for the same reason: real Idempotency-Key reserve/replay and real per-user rate-limiting
+are far simpler to build correctly against one atomic response than against a stream that would
+need to be cached and replayed chunk-by-chunk, and both phases' mandate was to build those
+controls for real rather than defer them again (see §"RAG / AI chat" and §"Interviews" above for
+each one's own note). `LLMProvider.stream()` (`app/ai/llm/base.py`) exists in the provider
+abstraction but has zero real consumers anywhere in the codebase — infrastructure kept ready for
+a genuine future streaming use case (e.g. a longer-form answer format where non-streaming latency
+becomes a real problem), not a broken promise this doc forgot to update. If a future phase adds
+real streaming, SSE is still the intended transport: each event a typed JSON payload
+(`{"type": "token" | "source" | "done" | "error", ...}`), not raw provider output, so the
+frontend never depends on a specific LLM provider's stream shape.

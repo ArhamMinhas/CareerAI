@@ -9,6 +9,7 @@ from app.core.config import settings
 # call site.
 _TASK_MODELS: dict[str, str] = {
     "resume_extraction": settings.llm_model_reasoning,
+    "interview_evaluation": settings.llm_model_reasoning,
 }
 
 _provider_cache: dict[str, LLMProvider] = {}

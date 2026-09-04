@@ -8,7 +8,9 @@ from app.api.v1 import (
     careers,
     companies,
     health,
+    interviews,
     jobs,
+    learning_roadmap,
     matches,
     profile,
     rag,
@@ -32,3 +34,5 @@ api_router.include_router(matches.router)
 api_router.include_router(applications.router)
 api_router.include_router(resources.router)
 api_router.include_router(rag.router)
+api_router.include_router(learning_roadmap.router)
+api_router.include_router(interviews.router)
