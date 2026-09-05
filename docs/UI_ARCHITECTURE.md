@@ -30,13 +30,10 @@ Authenticated app (noindex — private, personalized)
 /roadmap                   learning roadmap
 /settings                  account, notifications, theme
 
-/admin                     (role=ADMIN)
+/admin                     (role=ADMIN) — overview: system health + AI usage + model metrics
 /admin/users
 /admin/jobs
-/admin/analytics
-/admin/datasets
-/admin/models
-/admin/system
+/admin/skills
 ```
 
 Every authenticated-app route actually shipped so far (Phase 3+) lives nested under
@@ -44,8 +41,17 @@ Every authenticated-app route actually shipped so far (Phase 3+) lives nested un
 `/dashboard/matches`, `/dashboard/ask` (Phase 9), `/dashboard/roadmap` (Phase 10),
 `/dashboard/interviews` + `/dashboard/interviews/[id]` (Phase 11), `/dashboard/analytics`
 (Phase 12) — not the flat top-level paths this route map originally sketched (`/profile`,
-`/resume`, `/roadmap`, `/interviews`, `/analytics`, etc.). Still-unbuilt rows above (`/career`,
-`/settings`) are left as this map originally wrote them; update each as its phase actually ships,
+`/resume`, `/roadmap`, `/interviews`, `/analytics`, etc.). `/admin/*` (Phase 13) is the one
+exception, and deliberately so: the original route map always kept it as its own top-level
+section, structurally separate from "Authenticated app," not nested inside it — a role-gated
+internal tool is a genuinely different part of the app from the regular user dashboard, so it
+gets its own `AdminNav` (`components/layout/admin-nav.tsx`), not `DashboardSidebar`. The original
+sketch's separate `/admin/analytics`/`/admin/datasets`/`/admin/models`/`/admin/system` rows are
+consolidated into the one `/admin` overview page (system health + AI usage + model metrics) plus
+`/admin/jobs`/`/admin/skills` (which already cover "datasets"), the same way Phase 12 consolidated
+its own "market intelligence" sections into one page rather than one route per sub-view.
+Still-unbuilt rows above (`/career`, `/settings`) are left as this map originally wrote them;
+update each as its phase actually ships,
 following the same real, nested convention.
 
 The public/SEO surface and the authenticated app are structurally separate route groups, not

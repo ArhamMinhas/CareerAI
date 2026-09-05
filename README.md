@@ -6,7 +6,7 @@ personalized learning roadmap, AI mock interviews, and career/job-market analyti
 combination of deterministic algorithms, trained ML models, retrieval (RAG), and LLM reasoning,
 never a bare "ask the LLM for everything" wrapper.
 
-**Status: Phase 12 — Career Analytics ✅.** Monorepo, Next.js 15 + FastAPI apps, PostgreSQL +
+**Status: Phase 13 — Admin ✅.** Monorepo, Next.js 15 + FastAPI apps, PostgreSQL +
 pgvector via Docker Compose, CI, the landing page/dashboard/theme/SEO plumbing from Phase 2,
 the profile system (education, experience, projects, skills, career goals) from Phase 3, email/
 password + Google OAuth and real resume intelligence (async PDF/DOCX upload, NLP + LLM
@@ -33,7 +33,10 @@ Phase 11, and now career analytics — a personalized dashboard rollup (resume s
 interview performance, roadmap progress, job-search funnel) plus real, catalog-wide market
 intelligence (trending skills, job-posting and salary trends, trending career paths, a per-skill
 demand/salary table), all deterministic SQL aggregation with zero new LLM calls, at
-`/dashboard/analytics` — from Phase 12. See [docs/ROADMAP.md](docs/ROADMAP.md) for the full
+`/dashboard/analytics` — from Phase 12, and now a role-gated admin panel — user/job/skill
+management (including real embedding computation on admin-created postings), AI usage monitoring
+over the real `ai_conversations` cost log, and read-only surfacing of all 6 trained models' real
+stored metrics, at `/admin` — from Phase 13. See [docs/ROADMAP.md](docs/ROADMAP.md) for the full
 phase-by-phase status.
 
 ## Why this project exists

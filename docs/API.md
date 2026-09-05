@@ -305,18 +305,43 @@ Not built in Phase 12 — the roadmap's own one-liner for that phase ("skill tre
 salary analytics, career analytics, candidate analytics dashboards") never named notifications,
 and no feature yet generates a notification-worthy event to back this with real data.
 
-### Admin (role=ADMIN only)
+### Admin (role=ADMIN only, Phase 13)
 ```
-GET    /api/v1/admin/users
-PATCH  /api/v1/admin/users/{id}
-GET    /api/v1/admin/jobs
-POST   /api/v1/admin/jobs
-GET    /api/v1/admin/skills
-POST   /api/v1/admin/skills
-GET    /api/v1/admin/ai-usage
-GET    /api/v1/admin/model-metrics
-GET    /api/v1/admin/system-health
+GET    /api/v1/admin/users          -> cursor-paginated, optional ?q= substring filter on email
+PATCH  /api/v1/admin/users/{id}     -> body: {role}. The only real admin-mutable field on User —
+                                        blocks an admin from changing their OWN role away from
+                                        ADMIN (403), since there is no other path to ADMIN besides
+                                        direct DB access
+GET    /api/v1/admin/jobs           -> cursor-paginated, includes inactive jobs (unlike the
+                                        public /jobs list)
+POST   /api/v1/admin/jobs           -> creates a real Job + a real embedding (same pattern as
+                                        the Adzuna ingestion pipeline), requires an existing
+                                        company_id, optionally accepts required_skill_names
+GET    /api/v1/admin/skills         -> cursor-paginated, includes a has_curated_content flag
+                                        (whether seo_summary/embedding is set) — an admin-specific
+                                        view, not a duplicate of the public /skills autocomplete
+POST   /api/v1/admin/skills         -> a real create — 409 on a slug collision, unlike the
+                                        internal get_or_create_skill helper other features use,
+                                        which silently returns the existing row instead
+GET    /api/v1/admin/ai-usage       -> real aggregates over ai_conversations (Phase 5): call
+                                        counts/tokens/avg latency grouped by feature and by
+                                        model, optional ?date_from=/?date_to=. No dollar-cost
+                                        figure — no real pricing constants exist in this codebase
+GET    /api/v1/admin/model-metrics  -> real stored metadata.json fields for each of the 6 trained
+                                        models' currently-pinned version (Phase 8) — never a live
+                                        drift computation (that's Phase 14 scope)
+GET    /api/v1/admin/system-health  -> a real DB SELECT 1, a real Redis PING, and key-table row
+                                        counts. Deliberately NOT audit-log-based — audit_logs is
+                                        Phase 15 scope (docs/SECURITY.md)
 ```
+Every route requires `Depends(require_role(Role.ADMIN))` — 401 for no/invalid auth, 403 for an
+authenticated user who isn't an admin. No Idempotency-Key/rate-limit on any of them — no LLM call
+anywhere in this feature. The original sketch's separate `/admin/analytics`, `/admin/datasets`,
+`/admin/models`, `/admin/system` routes are folded into `/admin/ai-usage` +
+`/admin/model-metrics` + `/admin/system-health` (three, not four, since "datasets" here just
+means the skill/job catalogs `/admin/skills` and `/admin/jobs` already manage) — the frontend
+further consolidates ai-usage + model-metrics + system-health into one `/admin` overview page,
+the same way Phase 12 consolidated its own "market intelligence" sections.
 
 ## 6. OpenAPI → shared types
 

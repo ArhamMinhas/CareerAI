@@ -16,12 +16,16 @@ audit logging, full OWASP pass) in Phase 15. See [ROADMAP.md](./ROADMAP.md).
 
 ## 2. Authorization (RBAC)
 
-- Roles: `USER`, `ADMIN`, with `RECRUITER` reserved for a future phase (spec §6). Role lives on
+- Roles: `USER`, `ADMIN`, with `RECRUITER` reserved for a future phase's *features* (spec §6) —
+  Phase 13 (Admin) does let an admin assign the `RECRUITER` role to a user via
+  `PATCH /admin/users/{id}`, since role management itself is real admin scope now, but no
+  recruiter-only route or view exists yet to make that assignment do anything. Role lives on
   the local `users` row (see [DATABASE.md §2.1](./DATABASE.md#21-identity--profile)), not solely
   in the Supabase JWT, so authorization logic isn't hostage to the auth provider's claim shape.
-- A FastAPI dependency (`require_role(Role.ADMIN)`) guards admin routes; ownership checks
-  (e.g. "this resume belongs to the requesting user") happen in the service layer against the
-  authenticated user's ID, never trusted from a client-supplied field.
+- A FastAPI dependency (`require_role(Role.ADMIN)`) guards admin routes (its first real
+  consumers are Phase 13's `/api/v1/admin/*` routes — 403, not 401, for an authenticated
+  non-admin); ownership checks (e.g. "this resume belongs to the requesting user") happen in the
+  service layer against the authenticated user's ID, never trusted from a client-supplied field.
 - Admin routes are additionally namespaced under `/api/v1/admin/*` so authorization gaps are
   structurally easier to audit (one path prefix to check, not scattered per-route checks).
 

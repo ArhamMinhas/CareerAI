@@ -456,6 +456,10 @@ from `SKILL_DEMAND`/`SALARY_DATA` plus live SQL aggregates over `jobs`/`career_p
 jsonb blob alongside those would be redundant and harder to query than the structured tables that
 already exist. `NOTIFICATIONS` remains unbuilt — no feature yet generates a notification-worthy
 event to back it with real data, and it wasn't in Phase 12's own scope (see `docs/ROADMAP.md`).
+`AUDIT_LOGS` also remains unbuilt through Phase 13 (Admin) — it's easy to assume an admin panel
+would need it, but `docs/SECURITY.md`'s own status line explicitly reserves "audit logging" for
+Phase 15, not this one; Phase 13's `GET /admin/system-health` reads real DB/Redis connectivity and
+key-table counts instead, never this table.
 
 ### 2.6 Public Content & SEO
 

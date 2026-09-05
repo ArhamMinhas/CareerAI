@@ -1039,10 +1039,88 @@ browser-automation tool was available in this session to click through the live 
 signed-in user; verification stopped at compile-clean + correct-redirect + the service/API-level
 real-data checks above, not a rendered click-through.
 
-## Phase 13 — Admin ⬜
+## Phase 13 — Admin ✅
 
-Admin dashboard, user management, dataset management, job management, AI usage monitoring,
-model monitoring.
+Six `/api/v1/admin/*` routes, every one behind `require_role(Role.ADMIN)` — its first real
+consumers, after existing since Phase 1 with zero. Zero new DB tables/migrations (the second
+phase after Phase 12 with no schema change): user management (list + role change, the only real
+admin-mutable field on `User`), job management (list including inactive postings + create with a
+real computed embedding, mirroring the Adzuna ingestion pipeline's own pattern), skill management
+(list with a `has_curated_content` signal + a real create — not `get_or_create_skill`'s
+silently-return-existing contract), AI usage monitoring (real aggregates over `ai_conversations`,
+fulfilling `docs/AI_ARCHITECTURE.md §7`'s own two-phases-old forward reference: "the admin
+AI-usage dashboard (Phase 13) is a query over this table"), model monitoring (real stored
+`metadata.json` fields for the 6 Phase 8 models' currently-pinned versions), and system health
+(real DB/Redis connectivity + key-table counts). Frontend: a role-gated `/admin/*` route group,
+kept structurally separate from `/dashboard/*` per the original design doc's own route map (not a
+deviation to correct, unlike every other phase's nested-route fix), with its own `AdminNav`.
+
+**Two real scope boundaries respected, not invented for this write-up:** no `audit_logs` table —
+`docs/SECURITY.md`'s own status line reserves "audit logging" for Phase 15, despite
+`docs/DATABASE.md §2.5`'s sketch already showing one. No live model-drift computation on
+`GET /admin/model-metrics` — `app/ml/registry.py`'s own docstring reserves "drift monitoring and
+retraining triggers" for Phase 14. Both boundaries are stated plainly in the code and docs, not
+silently skipped.
+
+- The Plan-agent critique pass (before any code was written) caught six real gaps ahead of time
+  rather than after: (1) `get_or_create_skill` couldn't be reused as a thin wrapper for a real
+  "create with 409" — its contract is to *return the existing row* on a match, so a genuinely
+  separate `create_skill()` was written that 409s in both the pre-check and the concurrent-
+  request path, verified with a real `asyncio.gather` race test. (2) The Adzuna ingestion
+  function this phase's job-creation deliberately mirrors explicitly does not commit ("callers
+  own the transaction") — the admin route itself commits, not the service function. (3) Adzuna
+  silently substitutes `"No description provided."` for an empty description; an admin-authored
+  posting 422s on empty instead, via a real Pydantic `Field(min_length=1)`, not a copied silent
+  fallback. (4) `app/ml/inference.py`'s own `_model_mae()` precedent only guards a *missing*
+  `metadata.json`, never a malformed one — an uncaught `JSONDecodeError` there would have 500'd
+  the whole model-metrics response over one bad file; fixed with a per-model try/except covering
+  both failure modes, verified with a real test using a temp directory holding a valid, a
+  malformed, and a missing model. (5) "Reuse `jobs.py`'s cursor pattern" was imprecise — that
+  module's own comparison logic is hardcoded to `Job.posted_at`, which `Users`/`Skills` don't
+  have; each admin list route got its own `(created_at, id)` keyset logic instead, reusing only
+  the genuinely generic `encode_cursor`/`decode_cursor` helpers. (6) A client-side-only admin
+  role gate would have caused a real flash-of-admin-UI-then-redirect for a non-admin navigating
+  straight to `/admin` (the Supabase JWT carries no role claim) — fixed by moving the role check
+  server-side into `admin/layout.tsx` itself, a plain `fetch` to the already-existing
+  `GET /api/v1/auth/me` using the session's access token, redirecting before any child renders.
+- Found during the human code-review pass, after implementation, not by automated checks: the
+  admin job-creation route's `required_skill_names` loop didn't dedupe by *resolved* skill id,
+  only by raw string — two names that resolve to the same skill via `get_or_create_skill`'s own
+  slug-based dedup (e.g. "Python" and "python", confirmed by reproducing it: the literal test
+  case used all three of "Python", "python", "PYTHON") would try to insert two `JobSkill` rows
+  for the same `(job_id, skill_id)` pair and crash the whole request with an unhandled 500 at the
+  final flush. Fixed by deduping on the resolved skill id before adding each `JobSkill`, verified
+  by first reproducing the exact crash with the bug still in place (a real
+  `UniqueViolationError` on `uq_job_skills_job_skill`), then confirming the fix resolves it.
+
+**Deliberate scope decisions:** `PATCH /admin/users/{id}` only supports changing `role` — the
+only real admin-mutable field `User` has today; no ban/deactivate column exists and inventing one
+wasn't asked for. Demoting a *different* admin (even the last other one) is allowed — only
+self-demotion is blocked, since the acting admin keeps their own access either way and there's no
+real lockout risk in that case. No `/admin/companies` route — `POST /admin/jobs` requires an
+already-existing `company_id`, matching the original API sketch's scope exactly. No dollar-cost
+figure on AI usage — no real per-token pricing constants exist anywhere in this codebase, and
+fabricating one would misrepresent real spend more than omitting it.
+
+**Verified:** ruff/ruff-format/mypy clean on `apps/api`; pytest 293 passed (30 new — role-gate
+enforcement at both the 401 and 403 boundary, the self-demotion guard proven both ways
+(blocked for self, allowed for a different admin), `create_skill`'s real concurrent-request race
+test, the job-creation dedup regression described above, AI-usage aggregation correctness, model-
+metrics' graceful degrade for both a missing and a malformed file, and the full route lifecycle).
+`alembic check` reports no drift — no migration this phase. Frontend `tsc`/ESLint clean; existing
+Vitest suite unaffected; live Docker verification of all four `/admin/*` routes (redirect
+unauthenticated exactly like every other gated route, all compiled with no errors after a
+proactive Turbopack restart this time, not a live-discovered surprise). A real end-to-end check
+against the live seeded stack, reported honestly: all 6 trained models' real metrics surfaced
+correctly (scores from 0.093 to 30,230.8, the latter being `salary_prediction`'s dollar-scale MAE,
+not a normalized metric — a real, expected scale difference across model types); system health
+showed 8 real users, 553 real jobs, 8 real resumes, both DB and Redis genuinely healthy; AI usage
+showed real per-feature aggregates across all 4 LLM-backed features actually shipped so far
+(resume_analysis, learning_roadmap, rag_chat, interview) with real token/latency numbers, and
+correctly showed nothing for `career_advisor`, which has never made a real LLM call. **Honest
+gap:** same as Phases 11/12, no browser-automation tool was available in this session to click
+through the live UI with a real signed-in admin user; verification stopped at compile-clean +
+correct-redirect + the real service/API-level checks above, not a rendered click-through.
 
 ## Phase 14 — MLOps ⬜
 

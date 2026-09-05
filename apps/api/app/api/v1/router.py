@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.v1 import (
+    admin,
     analytics,
     applications,
     auth,
@@ -38,3 +39,4 @@ api_router.include_router(rag.router)
 api_router.include_router(learning_roadmap.router)
 api_router.include_router(interviews.router)
 api_router.include_router(analytics.router)
+api_router.include_router(admin.router)
