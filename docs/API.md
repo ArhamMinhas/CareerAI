@@ -263,18 +263,47 @@ trade-off given this phase's mandate to build both controls for real rather than
 again. Revisit streaming if/when a longer-form answer format makes non-streaming latency a real
 problem.
 
-### Analytics
+### Analytics (Phase 12)
 ```
-GET    /api/v1/analytics/market            -> trends, filters: region, role, date range
-GET    /api/v1/analytics/skills            -> demand, growth, salary correlation
-GET    /api/v1/analytics/dashboard         -> personalized executive-overview payload
+GET    /api/v1/analytics/market            -> catalog-wide skill/job/salary/career-path trends,
+                                               not personalized. ?date_from=/?date_to= filter the
+                                               two genuine time series (job posting volume,
+                                               median salary) only — top-growing-skills/trending-
+                                               career-paths always reflect the current snapshot,
+                                               which doesn't have a sensible historical-range
+                                               reading the way a time series does. No `region`
+                                               filter (the original sketch here) — SkillDemand/
+                                               SalaryData dropped that column in Phase 8, real
+                                               US-only data (see docs/DATABASE.md §2.5)
+GET    /api/v1/analytics/skills            -> the whole curated skill catalog (broader than
+                                               GET /skills/{slug}'s single-skill page): demand,
+                                               growth, and avg_associated_salary — a real average
+                                               of SalaryData rows for job categories/seniorities
+                                               that require each skill, not a fabricated
+                                               correlation coefficient. ?sort=/?limit= only, no
+                                               cursor pagination (the catalog is curated/seeded,
+                                               ~66 rows, matching §1's "small, stable" exemption)
+GET    /api/v1/analytics/dashboard         -> personalized executive-overview payload — a real
+                                               rollup of the current user's own already-computed
+                                               state (resume, skill gaps, interviews, roadmap,
+                                               job-search funnel). Strictly read-only: unlike
+                                               GET /skills/gaps, it never triggers a fresh
+                                               computation for a section that has no data yet
 ```
+All three are pure deterministic SQL aggregation — zero LLM calls (docs/AI_ARCHITECTURE.md §8 has
+no Analytics agent) — so none needs an Idempotency-Key or rate limit. Kept behind auth like every
+other `/dashboard/*`-backing route for consistency, not because the underlying market/skill data
+is confidential: `GET /skills/{slug}` already publicly exposes one skill's full demand history
+unauthenticated, so the catalog-wide views here are already reconstructable without login.
 
 ### Notifications
 ```
 GET    /api/v1/notifications
 PATCH  /api/v1/notifications/{id}/read
 ```
+Not built in Phase 12 — the roadmap's own one-liner for that phase ("skill trends, job trends,
+salary analytics, career analytics, candidate analytics dashboards") never named notifications,
+and no feature yet generates a notification-worthy event to back this with real data.
 
 ### Admin (role=ADMIN only)
 ```

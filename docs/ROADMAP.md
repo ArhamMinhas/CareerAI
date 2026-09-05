@@ -939,9 +939,105 @@ session to click through the live `/dashboard/interviews` UI with a real signed-
 Phase 9's Playwright pass did; verification for the frontend stopped at compile-clean +
 correct-redirect, not a real rendered click-through.
 
-## Phase 12 — Career Analytics ⬜
+## Phase 12 — Career Analytics ✅
 
-Skill trends, job trends, salary analytics, career analytics, candidate analytics dashboards.
+Three read-only, authenticated routes, zero LLM calls (`docs/AI_ARCHITECTURE.md §8` has no
+Analytics agent — this phase is pure deterministic SQL aggregation), zero new DB tables or
+migrations — the first phase since Phase 3 with no schema change. Built entirely on top of data
+that already existed: `SkillDemand`/`SalaryData` (Phase 8's real Adzuna-derived weekly
+aggregates), plus live aggregates over `jobs`/`career_path_skills`. `SalaryData` had **zero
+consumers anywhere in the codebase** before this phase — a real, confirmed gap this phase fills.
+`GET /api/v1/analytics/market` (catalog-wide top-growing skills, weekly job-posting/salary
+trends, trending career paths), `GET /api/v1/analytics/skills` (a catalog-wide per-skill table —
+demand, growth, and a real average "associated salary," broader than `/skills/[slug]`'s
+single-skill page), and `GET /api/v1/analytics/dashboard` (a personalized rollup of the current
+user's own resume score, skill gaps, interview performance, roadmap progress, and job-search
+funnel — strictly read-only, never triggering a fresh computation the way `GET /skills/gaps`
+does), all live at `/dashboard/analytics`.
+
+**Deviations from the original design** (`docs/DATABASE.md §2.5` has the full annotation): the
+ERD's `region` columns on `SKILL_DEMAND`/`SALARY_DATA` and the "region" filter on
+`GET /analytics/*` were already stale — Phase 8 dropped `region` entirely (real US-only data) but
+never updated this diagram/doc until now. `MARKET_TRENDS` (a `jsonb`-blob table) is never built
+and isn't planned — `SkillDemand`/`SalaryData` plus live SQL cover everything this phase needs,
+and a jsonb blob would be redundant and harder to query. `Notifications` stays unbuilt — never in
+this phase's own scope, and no feature yet generates a notification-worthy event. All three
+routes are kept behind auth for consistency with every other `/dashboard/*`-backing route, not
+because the underlying data is confidential — `GET /skills/{slug}` already publicly exposes one
+skill's full demand history unauthenticated, so the catalog-wide views here are already
+reconstructable without login; documented as a deliberate UX-consistency choice, not a real
+security boundary.
+
+- The Plan-agent critique pass (before any code was written) caught five real gaps ahead of time
+  rather than after: (1) a naive top-N-by-growth_rate would surface noise — `aggregate_market_
+  data.py`'s existing guard only checks the *prior* period before computing `growth_rate` at all,
+  never the *current* one, so a skill that fell to a thin current period could still carry a
+  real-looking but noisy rate at the top of a headline "trending skills" list; fixed by adding an
+  explicit current-period `MIN_PERIOD_COUNT` floor. (2) Averaging a career path's required-skill
+  growth rates needed to skip `NULL`s, not coerce them to 0 — a path with zero skills carrying a
+  real rate is excluded from the ranking entirely now, never shown as falsely "flat." (3) The
+  skill-analytics salary join fanned out per matching `Job` row rather than per distinct
+  `(category, seniority)` combo — a skill required by 10 jobs in the same category would have
+  counted that category's median salary ten times, skewing toward skills clustered in
+  high-posting-volume categories; fixed by deduplicating before ever touching `SalaryData`, plus
+  `IS NOT DISTINCT FROM` for the nullable `seniority_level` column (a plain `=` silently drops
+  every NULL-seniority match). (4) "Reuse existing helpers" was wrong for two of the dashboard's
+  five sections — no "get a user's current roadmap" helper exists (a user can have one roadmap
+  per target role), and no funnel-aggregation helper exists for `JobMatch`/`Application` — both
+  needed new, narrowly-scoped queries instead of a false reuse claim. (5) `CareerGoal.is_active`
+  has no DB-level uniqueness (a user can have 2+ simultaneously "active" goals), so a naive
+  `scalar_one_or_none()` would crash; fixed with the same `order_by(created_at.desc()).first()`
+  precedent `job_matching.py` already established. All five verified fixed by real tests, not
+  just reasoned about — including the exact multi-active-goal scenario and a real regression
+  proving the salary join no longer double-counts (a controlled fixture asserts the average is
+  75,000, not the 83,333.33 the fan-out bug would have produced).
+- Found while writing the dashboard-composition test, not by automated checks: the fixture for
+  "two simultaneously-active `CareerGoal`s, newer must win" initially failed because both rows
+  were inserted in the same transaction — Postgres's `now()` is transaction-time, not
+  statement-time, so both got an identical `server_default` timestamp and the "most recent" tie-
+  break became arbitrary. Not a production bug (real usage creates goals in separate requests,
+  separate transactions, matching `job_matching.py`'s own long-standing precedent this phase
+  reused) — but a real lesson for this test's own setup, fixed with explicit, distinct
+  `created_at` values rather than relying on wall-clock ordering within one transaction.
+- Also found and fixed during the human code-review pass: a `DEFAULT_SKILL_ANALYTICS_LIMIT`
+  constant was defined in the service module but never actually used — the route hardcoded `50`
+  directly instead of referencing it, a harmless but real single-source-of-truth violation. Wired
+  the route to import and use the constant.
+
+**Deliberate scope decisions:** `top_growing_skills`/`trending_career_paths` always reflect the
+truest *current* snapshot regardless of the `date_from`/`date_to` filter — "what's trending right
+now" doesn't have a sensible historical-range reading the way `job_posting_trend`/`salary_trend`
+(genuine time series) do; only those two respect the filter. No cursor pagination on
+`GET /analytics/skills` — the skill catalog is curated/seeded (66 rows currently), matching
+`docs/API.md §1`'s "small, stable" exemption, unlike `jobs`/`interviews`; revisit if the catalog
+ever grows via unbounded ingestion. No evaluation harness — there's no LLM call anywhere in this
+phase to evaluate, same reasoning Phase 10 already gave for skipping one.
+
+**Verified:** ruff/ruff-format/mypy clean on `apps/api`; pytest 263 passed (13 new — the growth-
+rate eligibility floor, `NULL`-growth-rate exclusion from career-path averaging, the salary-join
+deduplication and nullable-seniority match proven with a controlled fixture, dashboard
+composition for both an empty brand-new user and a user with real data in every section including
+the multi-active-goal and different-role-roadmap-than-goal scenarios, and the full route lifecycle
+including auth enforcement and date-range filtering). `alembic check` reports no drift — no
+migration this phase. Frontend `tsc --noEmit` and ESLint clean; existing Vitest suite unaffected;
+live Docker verification of `/dashboard/analytics` (redirects unauthenticated exactly like every
+other dashboard route, compiled with no errors after the same proactive Turbopack restart Phase
+10/11 each had to discover live instead). A real end-to-end check against the live seeded stack,
+reported honestly: `top_growing_skills` correctly excluded a skill with a thin current period
+while surfacing two real ones (Python +300%, Machine Learning -92.3%); `job_posting_trend`/
+`salary_trend` returned 25 real weekly periods each (553 real jobs, median salaries ranging
+~$125k–$157k); `trending_career_paths` correctly showed two unrelated paths (AI Engineer, ML
+Engineer) with an *identical* averaged growth rate — not a bug, a genuine artifact of only two
+skills clearing the eligibility floor catalog-wide right now, both required by both paths;
+`avg_associated_salary` correctly ranged from ~$112k to $160k across real skills; and a real
+user's dashboard rollup showed a completed resume (score 78.25), 7 missing/1 weak/1 adequate/3
+strong skill gaps for `ai-engineer`, a roadmap for a *different* role (`backend-engineer`,
+0/9 items) — confirming the deliberate "most-recently-updated roadmap, not tied to the active
+goal" design decision holds up against real data, not just a synthetic scenario — and 56 real
+computed job matches with zero tracked applications yet. **Honest gap:** same as Phase 11, no
+browser-automation tool was available in this session to click through the live UI with a real
+signed-in user; verification stopped at compile-clean + correct-redirect + the service/API-level
+real-data checks above, not a rendered click-through.
 
 ## Phase 13 — Admin ⬜
 

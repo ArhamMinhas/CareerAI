@@ -33,7 +33,7 @@ const navItems = [
   { href: "/dashboard/applications", label: "Applications", icon: ClipboardList },
   { href: "/dashboard/roadmap", label: "Roadmap", icon: Map },
   { href: "/dashboard/interviews", label: "Interviews", icon: MessagesSquare },
-  { href: "/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

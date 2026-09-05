@@ -86,11 +86,11 @@ Sitemap: https://careerai.example.com/sitemap.xml
 
 The real, shipped `app/robots.ts` (Phase 2+) uses a single blanket `Disallow: /dashboard` rather
 than this section's original per-feature list — every authenticated dashboard feature shipped so
-far (`/dashboard/skill-gap`, `/dashboard/ask`, `/dashboard/roadmap`, `/dashboard/interviews`, ...)
-lives under that one prefix, so one rule already covers all of them; `/career`, `/matches`,
-`/roadmap`, `/interviews`,
-`/analytics`, `/settings` as separate top-level disallow entries were never real paths to begin
-with (see the route-map note in `docs/UI_ARCHITECTURE.md §1`).
+far (`/dashboard/skill-gap`, `/dashboard/ask`, `/dashboard/roadmap`, `/dashboard/interviews`,
+`/dashboard/analytics`, ...) lives under that one prefix, so one rule already covers all of them;
+`/career`, `/matches`, `/roadmap`, `/interviews`, `/analytics`, `/settings` as separate top-level
+disallow entries were never real paths to begin with (see the route-map note in
+`docs/UI_ARCHITECTURE.md §1`).
 
 ### 2.3 Sitemap (`app/sitemap.ts`)
 

@@ -5,6 +5,7 @@ import { JobMatchesCard } from "@/components/dashboard/job-matches-card";
 import { CareerRecommendationsCard } from "@/components/dashboard/career-recommendations-card";
 import { RoadmapCard } from "@/components/dashboard/roadmap-card";
 import { InterviewCard } from "@/components/dashboard/interview-card";
+import { AnalyticsCard } from "@/components/dashboard/analytics-card";
 import { ResumeScoreCard } from "@/components/resume/resume-score-card";
 import { cardHover, cn } from "@/lib/utils";
 
@@ -44,6 +45,7 @@ export default function DashboardPage() {
           <CareerRecommendationsCard />
           <RoadmapCard />
           <InterviewCard />
+          <AnalyticsCard />
         </div>
       </div>
 

@@ -395,29 +395,18 @@ three tables, and `LEARNING_PATHS.phases` is no longer a `jsonb` blob:
 ```mermaid
 erDiagram
     SKILLS ||--o{ SKILL_DEMAND : measured
-    MARKET_TRENDS ||--o{ SALARY_DATA : includes
 
-    MARKET_TRENDS {
-        uuid id PK
-        text category
-        text region
-        jsonb metrics
-        date period_start
-        date period_end
-    }
     SKILL_DEMAND {
         uuid id PK
         uuid skill_id FK
-        text region
         int demand_count
-        numeric growth_rate
+        numeric growth_rate "nullable — too little prior-period data to compute"
         date period
     }
     SALARY_DATA {
         uuid id PK
         text job_title
-        text region
-        text seniority_level
+        text seniority_level "nullable"
         numeric p25
         numeric p50
         numeric p75
@@ -456,6 +445,17 @@ erDiagram
 `EMBEDDINGS` is a polymorphic table used for RAG knowledge-base chunks and any owner type that
 doesn't warrant its own dedicated `vector` column; high-traffic lookups (skills, jobs) keep a
 denormalized `vector` column directly on the entity table for join-free similarity search.
+
+**Deviation from this section's original design:** `region` was dropped from both `SKILL_DEMAND`
+and `SALARY_DATA` during Phase 8 (real US-only Adzuna data — a region dimension would fragment
+an already-thin dataset into near-empty cells; see `app/models/market_data.py`'s docstrings) —
+this diagram now matches that, having been left stale (still showing `region`) until Phase 12.
+`MARKET_TRENDS` (a `jsonb`-blob table) is never built and isn't planned — Phase 12's
+skill/job/salary/career-path trend analytics (`docs/API.md` "### Analytics") are served entirely
+from `SKILL_DEMAND`/`SALARY_DATA` plus live SQL aggregates over `jobs`/`career_path_skills`; a
+jsonb blob alongside those would be redundant and harder to query than the structured tables that
+already exist. `NOTIFICATIONS` remains unbuilt — no feature yet generates a notification-worthy
+event to back it with real data, and it wasn't in Phase 12's own scope (see `docs/ROADMAP.md`).
 
 ### 2.6 Public Content & SEO
 

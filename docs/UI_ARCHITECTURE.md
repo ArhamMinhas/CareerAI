@@ -28,7 +28,6 @@ Authenticated app (noindex — private, personalized)
 /career                    recommendations + explanations
 /matches                   personalized ranked matches
 /roadmap                   learning roadmap
-/analytics                 market + personal analytics
 /settings                  account, notifications, theme
 
 /admin                     (role=ADMIN)
@@ -43,10 +42,11 @@ Authenticated app (noindex — private, personalized)
 Every authenticated-app route actually shipped so far (Phase 3+) lives nested under
 `/dashboard/*` — `/dashboard/profile`, `/dashboard/resume`, `/dashboard/skill-gap`,
 `/dashboard/matches`, `/dashboard/ask` (Phase 9), `/dashboard/roadmap` (Phase 10),
-`/dashboard/interviews` + `/dashboard/interviews/[id]` (Phase 11) — not the flat top-level paths
-this route map originally sketched (`/profile`, `/resume`, `/roadmap`, `/interviews`, etc.).
-Still-unbuilt rows above (`/career`, `/analytics`, `/settings`) are left as this map originally
-wrote them; update each as its phase actually ships, following the same real, nested convention.
+`/dashboard/interviews` + `/dashboard/interviews/[id]` (Phase 11), `/dashboard/analytics`
+(Phase 12) — not the flat top-level paths this route map originally sketched (`/profile`,
+`/resume`, `/roadmap`, `/interviews`, `/analytics`, etc.). Still-unbuilt rows above (`/career`,
+`/settings`) are left as this map originally wrote them; update each as its phase actually ships,
+following the same real, nested convention.
 
 The public/SEO surface and the authenticated app are structurally separate route groups, not
 just a metadata flag — see [SEO.md §1](./SEO.md#1-what-gets-indexed-vs-what-doesnt) for the
